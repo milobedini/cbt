@@ -4,11 +4,15 @@ import bcrypt from 'bcryptjs'
 import dotenv from 'dotenv'
 import { errorHandler } from '../utils/errorHandler'
 import {
-  clearJWT,
   generateTokenAndSetCookie,
   generateVerificationCode,
 } from '../utils/jwtUtils'
-import { sendVerificationEmail, sendWelcomeEmail } from '../utils/emails'
+import {
+  sendPasswordResetEmail,
+  sendResetSuccessEmail,
+  sendVerificationEmail,
+  sendWelcomeEmail,
+} from '../utils/emails'
 dotenv.config()
 
 const registerUser = async (req: Request, res: Response): Promise<void> => {
@@ -77,7 +81,7 @@ const verifyEmail = async (req: Request, res: Response): Promise<void> => {
     console.log(verificationCode)
     const user = await User.findOne({
       verificationCode: verificationCode.trim(),
-      verificationCodeExpires: { $gt: new Date() }, // Check if the code is still valid
+      verificationCodeExpires: { $gt: new Date() },
     })
     if (!user) {
       res.status(400).json({
@@ -130,8 +134,26 @@ const loginUser = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ message: 'Invalid password!' })
       return
     }
+    if (!user.isVerified) {
+      res.status(400).json({
+        success: false,
+        message: 'Email not verified! Please verify your email first.',
+      })
+      return
+    }
+
     generateTokenAndSetCookie(res, user._id as string)
-    res.status(200).json({ success: true, message: 'Login successful!' })
+    user.lastLogin = new Date()
+    await user.save()
+    res.status(200).json({
+      success: true,
+      message: 'Login successful!',
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+      },
+    })
   } catch (error) {
     errorHandler(res, error)
   }
@@ -139,11 +161,102 @@ const loginUser = async (req: Request, res: Response): Promise<void> => {
 
 const logoutUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    clearJWT(res)
+    res.clearCookie('token')
     res.status(200).json({ message: 'Logout successful!' })
   } catch (error) {
     errorHandler(res, error)
   }
 }
 
-export { registerUser, verifyEmail, loginUser, logoutUser }
+const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  const { email } = req.body
+  try {
+    const user = await User.findOne({
+      email: email.trim(),
+    })
+    if (!user) {
+      res.status(400).json({ success: false, message: 'User not found!' })
+      return
+    }
+    const resetToken = crypto.randomUUID()
+    const resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000) // 60 minutes
+    user.resetPasswordToken = resetToken
+    user.resetPasswordExpires = resetTokenExpires
+
+    await user.save()
+
+    await sendPasswordResetEmail(
+      // Can only use my email temporarily
+      undefined,
+      `${process.env.CLIENT_URL}/reset-password/${resetToken}`
+    )
+    res.status(200).json({
+      success: true,
+      message: 'Password reset email sent successfully!',
+    })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.params
+    const { newPassword } = req.body
+
+    if (!newPassword) {
+      res.status(400).json({ message: 'New password is required!' })
+      return
+    }
+    if (!token) {
+      res.status(400).json({ message: 'Token is required!' })
+      return
+    }
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: new Date() },
+    })
+
+    if (!user) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid or expired password reset token!',
+      })
+      return
+    }
+
+    const salt = await bcrypt.genSalt(10)
+    user.password = await bcrypt.hash(newPassword, salt)
+    user.resetPasswordToken = undefined
+    user.resetPasswordExpires = undefined
+    await user.save()
+
+    await sendResetSuccessEmail(
+      // Can only use my email temporarily
+      undefined,
+      user.username
+    )
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully!',
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+      },
+    })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+export {
+  registerUser,
+  verifyEmail,
+  loginUser,
+  logoutUser,
+  forgotPassword,
+  resetPassword,
+}

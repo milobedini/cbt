@@ -1,6 +1,8 @@
 import { MailtrapClient } from 'mailtrap'
 import dotenv from 'dotenv'
 
+// https://mailtrap.io/home
+
 dotenv.config()
 
 export const mailtrapClient = new MailtrapClient({

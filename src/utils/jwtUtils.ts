@@ -22,18 +22,8 @@ const generateTokenAndSetCookie = (res: Response, userId: string) => {
   return token
 }
 
-const clearJWT = (res: Response) => {
-  res.cookie('jwt', '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    expires: new Date(0),
-    path: '/',
-  })
-}
-
 const generateVerificationCode = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
-export { generateTokenAndSetCookie, clearJWT, generateVerificationCode }
+export { generateTokenAndSetCookie, generateVerificationCode }
