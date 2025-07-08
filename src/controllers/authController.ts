@@ -3,7 +3,12 @@ import User, { IUser } from '../models/userModel'
 import bcrypt from 'bcryptjs'
 import dotenv from 'dotenv'
 import { errorHandler } from '../utils/errorHandler'
-import { clearJWT, generateJWT } from '../utils/jwtUtils'
+import {
+  clearJWT,
+  generateTokenAndSetCookie,
+  generateVerificationCode,
+} from '../utils/jwtUtils'
+import { sendVerificationEmail } from '../utils/emails'
 dotenv.config()
 
 const registerUser = async (req: Request, res: Response): Promise<void> => {
@@ -28,14 +33,31 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
 
     const salt = await bcrypt.genSalt(10)
     const hashedPassword = await bcrypt.hash(password, salt)
+    const verificationCode = generateVerificationCode()
 
     const newUser = new User({
       username,
       email,
       password: hashedPassword,
+      verificationCode,
+      verificationCodeExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     })
     await newUser.save()
-    res.status(201).json({ message: 'User created successfully!' })
+
+    generateTokenAndSetCookie(res, newUser._id as string)
+
+    // Temporarily can only use my email
+    await sendVerificationEmail(undefined, newUser.verificationCode)
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully!',
+      user: {
+        _id: newUser._id,
+        username: newUser.username,
+        email: newUser.email,
+      },
+    })
   } catch (error) {
     errorHandler(res, error)
   }
@@ -64,8 +86,8 @@ const loginUser = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ message: 'Invalid password!' })
       return
     }
-    generateJWT(res, user._id as string)
-    res.status(200).json({ message: 'Login successful!' })
+    generateTokenAndSetCookie(res, user._id as string)
+    res.status(200).json({ success: true, message: 'Login successful!' })
   } catch (error) {
     errorHandler(res, error)
   }
