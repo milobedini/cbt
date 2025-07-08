@@ -8,7 +8,7 @@ import {
   generateTokenAndSetCookie,
   generateVerificationCode,
 } from '../utils/jwtUtils'
-import { sendVerificationEmail } from '../utils/emails'
+import { sendVerificationEmail, sendWelcomeEmail } from '../utils/emails'
 dotenv.config()
 
 const registerUser = async (req: Request, res: Response): Promise<void> => {
@@ -46,6 +46,14 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
 
     generateTokenAndSetCookie(res, newUser._id as string)
 
+    if (!newUser.verificationCode) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to generate verification code!',
+      })
+      return
+    }
+
     // Temporarily can only use my email
     await sendVerificationEmail(undefined, newUser.verificationCode)
 
@@ -56,6 +64,42 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
         _id: newUser._id,
         username: newUser.username,
         email: newUser.email,
+      },
+    })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+const verifyEmail = async (req: Request, res: Response): Promise<void> => {
+  const { verificationCode } = req.body
+  try {
+    console.log(verificationCode)
+    const user = await User.findOne({
+      verificationCode: verificationCode.trim(),
+      verificationCodeExpires: { $gt: new Date() }, // Check if the code is still valid
+    })
+    if (!user) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification code!',
+      })
+      return
+    }
+    user.isVerified = true
+    user.verificationCode = undefined
+    user.verificationCodeExpires = undefined
+    await user.save()
+
+    // Temporarily can only use my email
+    await sendWelcomeEmail(undefined, user.username)
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully!',
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
       },
     })
   } catch (error) {
@@ -102,4 +146,4 @@ const logoutUser = async (req: Request, res: Response): Promise<void> => {
   }
 }
 
-export { registerUser, loginUser, logoutUser }
+export { registerUser, verifyEmail, loginUser, logoutUser }

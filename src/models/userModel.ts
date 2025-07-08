@@ -6,7 +6,7 @@ type IUser = Document & {
   password: string
   createdAt: Date
   updatedAt: Date
-  verificationCode: string
+  verificationCode?: string
   verificationCodeExpires?: Date
   isVerified?: boolean
   resetPasswordToken?: string
@@ -47,7 +47,11 @@ const userSchema = new mongoose.Schema<IUser>(
     },
     verificationCode: {
       type: String,
-      select: false,
+      // select: false,
+    },
+    verificationCodeExpires: {
+      type: Date,
+      // select: false,
     },
     isVerified: {
       type: Boolean,
