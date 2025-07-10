@@ -8,6 +8,12 @@ import cookieParser from 'cookie-parser'
 import authenticateUser from './middleware/authMiddleware'
 import cors from 'cors'
 
+const allowedOrigins = [
+  'http://localhost:8081', // Local
+  'https://bwell--8b1gx70fk3.expo.app/', // Web Version
+  process.env.CLIENT_URL, // Optional dynamic
+].filter(Boolean) // remove falsy values
+
 dotenv.config()
 
 const app = express()
@@ -19,7 +25,12 @@ app.use(express.json())
 app.use(cookieParser())
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:8081',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true)
+      }
+      return callback(new Error('Not allowed by CORS'))
+    },
     credentials: true,
   })
 )
