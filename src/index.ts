@@ -8,11 +8,13 @@ import cookieParser from 'cookie-parser'
 import authenticateUser from './middleware/authMiddleware'
 import cors from 'cors'
 
+const isDev = process.env.NODE_ENV !== 'production'
+
 const allowedOrigins = [
-  'http://localhost:8081', // Local
-  'https://bwell--8b1gx70fk3.expo.app/', // Web Version
-  process.env.CLIENT_URL, // Optional dynamic
-].filter(Boolean) // remove falsy values
+  'http://localhost:8081',
+  'https://bwell--8b1gx70fk3.expo.app/',
+  process.env.CLIENT_URL,
+].filter(Boolean)
 
 dotenv.config()
 
@@ -26,9 +28,16 @@ app.use(cookieParser())
 app.use(
   cors({
     origin: (origin, callback) => {
+      if (isDev) {
+        // ✅ In dev, allow all origins (including undefined like Postman or curl)
+        return callback(null, true)
+      }
+
+      // ✅ In prod, strictly whitelist allowed origins
       if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true)
       }
+
       return callback(new Error('Not allowed by CORS'))
     },
     credentials: true,
