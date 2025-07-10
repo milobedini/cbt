@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node dist/src/index.js",
     "dev": "nodemon",
-    "build": "tsc"
+    "build": "tsc",
+    "publish": "npx tsc -p src/shared-types && echo \"// dummy\" > src/shared-types/dist/index.js && cd src/shared-types && npm version patch && npm publish --access public"
   },
   "repository": {
     "type": "git",
@@ -22,19 +23,23 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.9",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.0.10",
+    "@types/nodemailer": "^6.4.17",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
     "dotenv": "^17.1.0",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mailtrap": "^4.1.0",
-    "mongoose": "^8.16.2"
+    "mongoose": "^8.16.2",
+    "nodemailer": "^6.10.1"
   }
 }

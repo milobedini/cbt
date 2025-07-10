@@ -1,0 +1,10 @@
+{
+  "name": "@milobedini/shared-types",
+  "version": "1.0.5",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "license": "MIT"
+}
