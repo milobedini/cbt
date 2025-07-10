@@ -51,21 +51,6 @@ app.get('/', (req, res) => {
   res.send('JWT Authentication System is running!')
 })
 
-app.all('*', (req, res) => {
-  console.log('⚠️ Unhandled request received:')
-  console.log('→ Method:', req.method)
-  console.log('→ URL:', req.originalUrl)
-  console.log('→ Headers:', req.headers)
-  console.log('→ Body:', req.body)
-  console.log('→ Cookies:', req.cookies)
-  res.status(404).json({
-    message: '🔍 Route not found',
-    method: req.method,
-    path: req.originalUrl,
-    timestamp: new Date().toISOString(),
-  })
-})
-
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`)
 })
