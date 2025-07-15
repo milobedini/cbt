@@ -78,7 +78,6 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
 const verifyEmail = async (req: Request, res: Response): Promise<void> => {
   const { verificationCode } = req.body
   try {
-    console.log(verificationCode)
     const user = await User.findOne({
       verificationCode: verificationCode.trim(),
       verificationCodeExpires: { $gt: new Date() },

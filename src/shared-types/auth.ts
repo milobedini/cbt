@@ -26,3 +26,7 @@ export interface RegisterInput {
   username: string
   password: string
 }
+
+export interface VerifyInput {
+  verificationCode: string
+}
