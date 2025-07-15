@@ -6,8 +6,6 @@ dotenv.config()
 
 const JWT_SECRET: Secret = process.env.JWT_SECRET || 'secret'
 
-console.log(JWT_SECRET)
-
 const generateTokenAndSetCookie = (res: Response, userId: string) => {
   const token = sign({ userId }, JWT_SECRET, { expiresIn: '7d' })
 

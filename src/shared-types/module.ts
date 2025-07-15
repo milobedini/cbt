@@ -1,4 +1,4 @@
-export interface ModuleDTO {
+export interface Module {
   _id: string
   title: string
   description: string
@@ -8,11 +8,11 @@ export interface ModuleDTO {
 }
 
 export interface ModulesResponse {
-  modules: ModuleDTO[]
+  modules: Module[]
 }
 
 export interface ModuleResponse {
-  module: ModuleDTO
+  module: Module
 }
 
 export interface CreateModuleInput {

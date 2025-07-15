@@ -26,7 +26,6 @@ const sendVerificationEmail = async (
       ),
       category: 'Email Verification',
     })
-    console.log(`Email sent successfully to ${email}:`, response)
   } catch (error) {
     console.error(`Failed to send verification email to ${email}:`, error)
     throw new Error(`Failed to send verification email to ${email}: ${error}`)
@@ -48,7 +47,6 @@ const sendWelcomeEmail = async (
         name: username,
       },
     })
-    console.log(`Welcome email sent successfully to ${email}:`, response)
   } catch (error) {
     throw new Error(`Failed to send welcome email to ${email}: ${error}`)
   }
@@ -67,7 +65,6 @@ const sendPasswordResetEmail = async (
       html: PASSWORD_RESET_REQUEST_TEMPLATE.replace('{resetURL}', resetUrl),
       category: 'Password Reset',
     })
-    console.log(`Password reset email sent successfully to ${email}:`, response)
   } catch (error) {
     console.error(`Failed to send password reset email to ${email}:`, error)
     throw new Error(`Failed to send password reset email to ${email}: ${error}`)
@@ -87,10 +84,6 @@ const sendResetSuccessEmail = async (
       html: PASSWORD_RESET_SUCCESS_TEMPLATE.replace('{username}', username),
       category: 'Password Reset',
     })
-    console.log(
-      `Password reset success email sent successfully to ${email}:`,
-      response
-    )
   } catch (error) {
     throw new Error(
       `Failed to send password reset success email to ${email}: ${error}`
