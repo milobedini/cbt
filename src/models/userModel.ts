@@ -1,5 +1,11 @@
 import mongoose, { Document } from 'mongoose'
 
+enum UserRole {
+  THERAPIST = 'therapist',
+  PATIENT = 'patient',
+  ADMIN = 'admin',
+}
+
 type IUser = Document & {
   username: string
   email: string
@@ -12,6 +18,7 @@ type IUser = Document & {
   resetPasswordToken?: string
   resetPasswordExpires?: Date
   lastLogin: Date
+  roles: UserRole[]
 }
 
 const userSchema = new mongoose.Schema<IUser>(
@@ -47,11 +54,9 @@ const userSchema = new mongoose.Schema<IUser>(
     },
     verificationCode: {
       type: String,
-      // select: false,
     },
     verificationCodeExpires: {
       type: Date,
-      // select: false,
     },
     isVerified: {
       type: Boolean,
@@ -69,6 +74,15 @@ const userSchema = new mongoose.Schema<IUser>(
       type: Date,
       default: Date.now,
     },
+    roles: {
+      type: [String],
+      enum: Object.values(UserRole),
+      required: [true, 'At least one user role is required!'],
+      validate: {
+        validator: (arr: string[]) => arr.length > 0,
+        message: 'User must have at least one role!',
+      },
+    },
   },
   {
     timestamps: true,
@@ -79,4 +93,4 @@ const userSchema = new mongoose.Schema<IUser>(
 const User = mongoose.model<IUser>('User', userSchema)
 
 export default User
-export { IUser }
+export { IUser, UserRole }

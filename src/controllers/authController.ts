@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import User, { IUser } from '../models/userModel'
+import User, { IUser, UserRole } from '../models/userModel'
 import bcrypt from 'bcryptjs'
 import dotenv from 'dotenv'
 import { errorHandler } from '../utils/errorHandler'
@@ -17,10 +17,21 @@ dotenv.config()
 
 const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { username, email, password } = req.body
+    const { username, email, password, roles } = req.body
 
     if (!username || !email || !password) {
       res.status(400).json({ message: 'Missing credentials!' })
+      return
+    }
+    if (!roles || !Array.isArray(roles) || roles.length === 0) {
+      res.status(400).json({ message: 'At least one role is required!' })
+      return
+    }
+    const validRoles = Object.values(UserRole)
+    const hasInvalidRole = roles.some((role) => !validRoles.includes(role))
+
+    if (hasInvalidRole) {
+      res.status(400).json({ message: 'One or more roles are invalid!' })
       return
     }
 
@@ -45,6 +56,7 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
       password: hashedPassword,
       verificationCode,
       verificationCodeExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      roles,
     })
     await newUser.save()
 

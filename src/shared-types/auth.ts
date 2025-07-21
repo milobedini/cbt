@@ -2,6 +2,13 @@ export interface AuthUser {
   _id: string
   username: string
   email: string
+  roles: UserRole[]
+}
+
+export enum UserRole {
+  THERAPIST = 'therapist',
+  PATIENT = 'patient',
+  ADMIN = 'admin',
 }
 
 export interface AuthResponse {
