@@ -5,15 +5,7 @@ export interface AuthUser {
   roles: string[]
 }
 
-const UserRole = {
-  THERAPIST: 'therapist',
-  PATIENT: 'patient',
-  ADMIN: 'admin',
-} as const
-
-export type UserRole = (typeof UserRole)[keyof typeof UserRole]
-
-export const UserRoles = Object.values(UserRole)
+export type UserRole = 'therapist' | 'admin' | 'patient'
 
 export interface AuthResponse {
   success: boolean

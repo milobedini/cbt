@@ -15,6 +15,8 @@ import {
 } from '../utils/emails'
 dotenv.config()
 
+export const USER_ROLES_ARRAY = ['therapist', 'admin', 'patient'] as const
+
 const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, email, password, roles } = req.body
