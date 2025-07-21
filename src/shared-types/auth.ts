@@ -21,16 +21,11 @@ export interface RegisterInput {
   username: string
   email: string
   password: string
+  roles: UserRole[]
 }
 
 export interface LoginInput {
   identifier: string
-  password: string
-}
-
-export interface RegisterInput {
-  email: string
-  username: string
   password: string
 }
 
