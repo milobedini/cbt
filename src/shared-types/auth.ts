@@ -2,14 +2,16 @@ export interface AuthUser {
   _id: string
   username: string
   email: string
-  roles: UserRole[]
+  roles: string[]
 }
 
-export enum UserRole {
-  THERAPIST = 'therapist',
-  PATIENT = 'patient',
-  ADMIN = 'admin',
-}
+export const UserRole = {
+  THERAPIST: 'therapist',
+  PATIENT: 'patient',
+  ADMIN: 'admin',
+} as const
+
+export type UserRole = (typeof UserRole)[keyof typeof UserRole]
 
 export interface AuthResponse {
   success: boolean
