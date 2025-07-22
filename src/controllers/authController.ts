@@ -165,6 +165,7 @@ const loginUser = async (req: Request, res: Response): Promise<void> => {
         _id: user._id,
         username: user.username,
         email: user.email,
+        roles: user.roles,
       },
     })
   } catch (error) {

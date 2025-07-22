@@ -5,7 +5,7 @@ import { errorHandler } from '../utils/errorHandler'
 const getUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user?._id
-    const user = await User.findById(userId, '_id username email')
+    const user = await User.findById(userId, '_id username email roles')
     if (!user) {
       res.status(404).json({ message: 'User not found' })
       return

@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express'
 import Module from '../models/moduleModel'
 import { errorHandler } from '../utils/errorHandler'
+import Question from '../models/questionModel'
+import ScoreBand from '../models/scoreBandModel'
 
 const getModules = async (req: Request, res: Response) => {
   try {
@@ -20,6 +22,24 @@ const getModuleById = async (req: Request, res: Response) => {
       return
     }
     res.status(200).json({ success: true, module })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+const getDetailedModuleById = async (req: Request, res: Response) => {
+  const { id } = req.params
+  try {
+    const module = await Module.findById(id)
+    const questions = await Question.find({ module: module?._id }).sort({
+      order: 1,
+    })
+    const scoreBands = await ScoreBand.find({ module: module?._id })
+    if (!module) {
+      res.status(404).json({ success: false, message: 'Module not found' })
+      return
+    }
+    res.status(200).json({ success: true, module, questions, scoreBands })
   } catch (error) {
     errorHandler(res, error)
   }
@@ -49,4 +69,4 @@ const createModule = async (req: Request, res: Response) => {
   }
 }
 
-export { getModules, getModuleById, createModule }
+export { getModules, getModuleById, createModule, getDetailedModuleById }
