@@ -1,36 +1,30 @@
-import mongoose, { Document } from 'mongoose'
+import mongoose, { Document, Schema, Types } from 'mongoose'
 
 type IModule = Document & {
   title: string
   description: string
+  program: Types.ObjectId
+  type: 'questionnaire' | 'psychoeducation' | 'exercise'
   createdAt: Date
   updatedAt: Date
+  disclaimer?: string
   imageUrl?: string
 }
 
 const moduleSchema = new mongoose.Schema<IModule>(
   {
-    title: {
+    title: { type: String, required: true, trim: true, maxlength: 100 },
+    description: { type: String, required: true, trim: true, maxlength: 500 },
+    program: { type: Schema.Types.ObjectId, ref: 'Program', required: true },
+    type: {
       type: String,
-      required: [true, 'Module title is required!'],
-      trim: true,
-      maxlength: [100, 'Module title cannot exceed 100 characters!'],
+      enum: ['questionnaire', 'psychoeducation', 'exercise'],
+      required: true,
     },
-    description: {
-      type: String,
-      required: [true, 'Module description is required!'],
-      trim: true,
-      maxlength: [500, 'Module description cannot exceed 500 characters!'],
-    },
-    imageUrl: {
-      type: String,
-      trim: true,
-    },
+    disclaimer: String,
+    imageUrl: String,
   },
-  {
-    timestamps: true,
-    collection: 'modules',
-  }
+  { timestamps: true, collection: 'modules' }
 )
 
 const Module = mongoose.model<IModule>('Module', moduleSchema)

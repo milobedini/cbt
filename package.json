@@ -6,7 +6,9 @@
     "start": "node dist/index.js",
     "dev": "nodemon",
     "build": "tsc",
-    "publish": "npx tsc -p src/shared-types && echo \"// dummy\" > src/shared-types/dist/index.js && cd src/shared-types && npm version patch && npm publish --access public"
+    "publish": "npx tsc -p src/shared-types && echo \"// dummy\" > src/shared-types/dist/index.js && cd src/shared-types && npm version patch && npm publish --access public",
+    "seed": "ts-node ./src/seeds/phq9.ts",
+    "drop": "ts-node ./src/seeds/drop.ts"
   },
   "repository": {
     "type": "git",
