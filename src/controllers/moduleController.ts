@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import Module from '../models/moduleModel'
 import { errorHandler } from '../utils/errorHandler'
 
-export const getModules = async (req: Request, res: Response) => {
+const getModules = async (req: Request, res: Response) => {
   try {
     const modules = await Module.find().sort({ createdAt: -1 })
     res.status(200).json({ success: true, modules })
@@ -11,7 +11,21 @@ export const getModules = async (req: Request, res: Response) => {
   }
 }
 
-export const createModule = async (req: Request, res: Response) => {
+const getModuleById = async (req: Request, res: Response) => {
+  const { id } = req.params
+  try {
+    const module = await Module.findById(id)
+    if (!module) {
+      res.status(404).json({ success: false, message: 'Module not found' })
+      return
+    }
+    res.status(200).json({ success: true, module })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+const createModule = async (req: Request, res: Response) => {
   try {
     const { title, description, imageUrl } = req.body
 
@@ -34,3 +48,5 @@ export const createModule = async (req: Request, res: Response) => {
     errorHandler(res, error)
   }
 }
+
+export { getModules, getModuleById, createModule }

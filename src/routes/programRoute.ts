@@ -1,8 +1,9 @@
 import express from 'express'
-import { getPrograms } from '../controllers/programController'
+import { getProgramById, getPrograms } from '../controllers/programController'
 
 const router = express.Router()
 
 router.get('/', getPrograms)
+router.get('/:id', getProgramById)
 
 export default router

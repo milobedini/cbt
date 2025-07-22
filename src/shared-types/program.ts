@@ -14,13 +14,20 @@ export interface Module {
   updatedAt: string
 }
 
-export interface Program {
+export interface ProgramBase {
   _id: string
   title: string
   description: string
-  modules: string[] // can be populated or just IDs
   createdAt: string
   updatedAt: string
+}
+
+export interface Program extends ProgramBase {
+  modules: string[]
+}
+
+export interface ProgramWithModules extends ProgramBase {
+  modules: Module[]
 }
 
 // ----------------------------------
@@ -76,7 +83,7 @@ export interface AssessmentResponse {
 
 // GET /programs/:id
 export interface ProgramResponse {
-  program: Program
+  program: ProgramWithModules
 }
 
 // GET /programs
