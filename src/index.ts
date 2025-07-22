@@ -3,6 +3,7 @@ import dotenv from 'dotenv'
 import authRouter from './routes/authRoute'
 import userRouter from './routes/userRoute'
 import moduleRouter from './routes/moduleRoute'
+import programRouter from './routes/programRoute'
 import connectDB from './config/database'
 import cookieParser from 'cookie-parser'
 import authenticateUser from './middleware/authMiddleware'
@@ -46,6 +47,7 @@ app.use(
 app.use('/api', authRouter)
 app.use('/api/user', authenticateUser, userRouter)
 app.use('/api/modules', moduleRouter)
+app.use('/api/programs', programRouter)
 
 app.get('/', (req, res) => {
   res.send('JWT Authentication System is running!')

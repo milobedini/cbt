@@ -1,7 +1,6 @@
 import type { Request, Response } from 'express'
 import Module from '../models/moduleModel'
 import { errorHandler } from '../utils/errorHandler'
-import Program from '../models/programModel'
 
 export const getModules = async (req: Request, res: Response) => {
   try {

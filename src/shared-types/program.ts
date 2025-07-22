@@ -79,6 +79,11 @@ export interface ProgramResponse {
   program: Program
 }
 
+// GET /programs
+export interface ProgramsResponse {
+  programs: Program[]
+}
+
 // GET /programs/:id/modules
 export interface ModulesResponse {
   modules: Module[]
