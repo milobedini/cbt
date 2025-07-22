@@ -4,7 +4,9 @@ import { errorHandler } from '../utils/errorHandler'
 
 export const getModules = async (req: Request, res: Response) => {
   try {
-    const modules = await Module.find().sort({ createdAt: -1 })
+    const modules = await Module.find()
+      .sort({ createdAt: -1 })
+      .populate('program')
     res.status(200).json({ success: true, modules })
   } catch (error) {
     errorHandler(res, error)

@@ -18,7 +18,7 @@ export interface Program {
   _id: string
   title: string
   description: string
-  modules: string[] | Module[] // can be populated or just IDs
+  modules: Module[] // can be populated or just IDs
   createdAt: string
   updatedAt: string
 }
