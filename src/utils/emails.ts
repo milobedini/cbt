@@ -3,7 +3,7 @@ import {
   PASSWORD_RESET_SUCCESS_TEMPLATE,
   VERIFICATION_EMAIL_TEMPLATE,
 } from '../mailtrap/emailTemplates'
-import { mailtrapClient, sender } from '../mailtrap/mailtrip.config'
+import { mailtrapClient, sender } from '../mailtrap/mailtrap.config'
 
 const sendVerificationEmail = async (
   // Temporarily can only use my email
