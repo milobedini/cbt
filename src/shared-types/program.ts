@@ -6,7 +6,7 @@ export interface Module {
   _id: string
   title: string
   description: string
-  program: Program
+  program: string // ObjectId reference
   type: 'questionnaire' | 'psychoeducation' | 'exercise'
   disclaimer?: string
   imageUrl?: string
