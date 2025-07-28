@@ -30,7 +30,7 @@ const getModuleById = async (req: Request, res: Response) => {
 const getDetailedModuleById = async (req: Request, res: Response) => {
   const { id } = req.params
   try {
-    const module = await Module.findById(id)
+    const module = await Module.findById(id).populate('program')
     const questions = await Question.find({ module: module?._id }).sort({
       order: 1,
     })
