@@ -101,6 +101,13 @@ export interface ModuleResponse {
   module: Module
 }
 
+export interface ModuleDetailResponse {
+  success: boolean
+  module: Module
+  questions: Question[]
+  scoreBands: ScoreBand[]
+}
+
 // GET /modules/:id/questions
 export interface QuestionListResponse {
   questions: Question[]
