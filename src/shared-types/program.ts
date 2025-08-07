@@ -2,7 +2,7 @@
 // Program + Module + Questionnaire Types
 // ----------------------------------
 
-export interface Module {
+export type Module = {
   _id: string
   title: string
   description: string
@@ -14,7 +14,7 @@ export interface Module {
   updatedAt: string
 }
 
-export interface ProgramBase {
+export type ProgramBase = {
   _id: string
   title: string
   description: string
@@ -22,11 +22,11 @@ export interface ProgramBase {
   updatedAt: string
 }
 
-export interface Program extends ProgramBase {
+export type Program = ProgramBase & {
   modules: string[]
 }
 
-export interface ProgramWithModules extends ProgramBase {
+export type ProgramWithModules = ProgramBase & {
   modules: Module[]
 }
 
@@ -34,12 +34,12 @@ export interface ProgramWithModules extends ProgramBase {
 // Questionnaires (PHQ‑9, GAD‑7, etc.)
 // ----------------------------------
 
-export interface Choice {
+export type Choice = {
   text: string
   score: number
 }
 
-export interface Question {
+export type Question = {
   _id: string
   module: string // ObjectId reference
   order: number
@@ -47,7 +47,7 @@ export interface Question {
   choices: Choice[]
 }
 
-export interface ScoreBand {
+export type ScoreBand = {
   _id: string
   module: string // ObjectId reference
   min: number
@@ -60,12 +60,12 @@ export interface ScoreBand {
 // Assessment (User submission)
 // ----------------------------------
 
-export interface AssessmentAnswer {
+export type AssessmentAnswer = {
   question: string // question _id
   chosenScore: number
 }
 
-export interface AssessmentResponse {
+export type AssessmentResponse = {
   _id: string
   user: string
   program: string
@@ -82,26 +82,26 @@ export interface AssessmentResponse {
 // ----------------------------------
 
 // GET /programs/:id
-export interface ProgramResponse {
+export type ProgramResponse = {
   program: ProgramWithModules
 }
 
 // GET /programs
-export interface ProgramsResponse {
+export type ProgramsResponse = {
   programs: Program[]
 }
 
 // GET /programs/:id/modules
-export interface ModulesResponse {
+export type ModulesResponse = {
   modules: Module[]
 }
 
 // GET /modules/:id
-export interface ModuleResponse {
+export type ModuleResponse = {
   module: Module
 }
 
-export interface ModuleDetailResponse {
+export type ModuleDetailResponse = {
   success: boolean
   module: Module
   questions: Question[]
@@ -109,23 +109,23 @@ export interface ModuleDetailResponse {
 }
 
 // GET /modules/:id/questions
-export interface QuestionListResponse {
+export type QuestionListResponse = {
   questions: Question[]
 }
 
 // GET /modules/:id/score-bands
-export interface ScoreBandListResponse {
+export type ScoreBandListResponse = {
   scoreBands: ScoreBand[]
 }
 
 // POST /assessments
-export interface AssessmentSubmitInput {
+export type AssessmentSubmitInput = {
   moduleId: string
   answers: AssessmentAnswer[]
 }
 
 // Response after submitting assessment
-export interface AssessmentSubmitResponse {
+export type AssessmentSubmitResponse = {
   totalScore: number
   scoreBand: string
   interpretation: string
@@ -133,7 +133,7 @@ export interface AssessmentSubmitResponse {
 }
 
 // GET /assessments?moduleId=...
-export interface AssessmentHistoryResponse {
+export type AssessmentHistoryResponse = {
   assessments: AssessmentResponse[]
 }
 
@@ -141,7 +141,7 @@ export interface AssessmentHistoryResponse {
 // Input types (admin/admin panel)
 // ----------------------------------
 
-export interface CreateModuleInput {
+export type CreateModuleInput = {
   title: string
   description: string
   type: 'questionnaire' | 'psychoeducation' | 'exercise'
@@ -150,14 +150,14 @@ export interface CreateModuleInput {
   imageUrl?: string
 }
 
-export interface CreateQuestionInput {
+export type CreateQuestionInput = {
   moduleId: string
   text: string
   order: number
   choices: Choice[]
 }
 
-export interface CreateScoreBandInput {
+export type CreateScoreBandInput = {
   moduleId: string
   min: number
   max: number

@@ -1,31 +1,36 @@
-export interface AuthUser {
+export type User = {
   _id: string
   username: string
   email: string
+}
+
+export type AuthUser = User & {
   roles: string[]
   isVerifiedTherapist: boolean
 }
 
 export type UserRole = 'therapist' | 'admin' | 'patient'
 
-export interface AuthResponse {
+export type AuthResponse = {
   success: boolean
   message: string
   user: AuthUser
 }
 
-export interface RegisterInput {
+export type RegisterInput = {
   username: string
   email: string
   password: string
   roles: UserRole[]
 }
 
-export interface LoginInput {
+export type LoginInput = {
   identifier: string
   password: string
 }
 
-export interface VerifyInput {
+export type VerifyInput = {
   verificationCode: string
 }
+
+export type PatientsResponse = User[]
