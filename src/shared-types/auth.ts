@@ -3,6 +3,7 @@ export interface AuthUser {
   username: string
   email: string
   roles: string[]
+  isVerifiedTherapist: boolean
 }
 
 export type UserRole = 'therapist' | 'admin' | 'patient'

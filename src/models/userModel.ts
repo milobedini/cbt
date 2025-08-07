@@ -19,6 +19,7 @@ type IUser = Document & {
   resetPasswordExpires?: Date
   lastLogin: Date
   roles: UserRole[]
+  isVerifiedTherapist?: boolean
 }
 
 const userSchema = new mongoose.Schema<IUser>(
@@ -82,6 +83,10 @@ const userSchema = new mongoose.Schema<IUser>(
         validator: (arr: string[]) => arr.length > 0,
         message: 'User must have at least one role!',
       },
+    },
+    isVerifiedTherapist: {
+      type: Boolean,
+      default: false,
     },
   },
   {

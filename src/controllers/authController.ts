@@ -19,7 +19,7 @@ export const USER_ROLES_ARRAY = ['therapist', 'admin', 'patient'] as const
 
 const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { username, email, password, roles } = req.body
+    const { username, email, password, roles, isVerifiedTherapist } = req.body
 
     if (!username || !email || !password) {
       res.status(400).json({ message: 'Missing credentials!' })
@@ -52,6 +52,9 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
     const hashedPassword = await bcrypt.hash(password, salt)
     const verificationCode = generateVerificationCode()
 
+    const shouldVerifyTherapist =
+      roles.includes(UserRole.THERAPIST) && isVerifiedTherapist
+
     const newUser = new User({
       username,
       email,
@@ -59,6 +62,7 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
       verificationCode,
       verificationCodeExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       roles,
+      isVerifiedTherapist: shouldVerifyTherapist,
     })
     await newUser.save()
 
