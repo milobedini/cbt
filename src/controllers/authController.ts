@@ -171,6 +171,7 @@ const loginUser = async (req: Request, res: Response): Promise<void> => {
         email: user.email,
         roles: user.roles,
         isVerifiedTherapist: user.isVerifiedTherapist,
+        therapist: user.therapist,
       },
     })
   } catch (error) {

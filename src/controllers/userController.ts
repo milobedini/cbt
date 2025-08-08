@@ -127,6 +127,10 @@ const addRemoveTherapist = async (
         .json({ message: 'Only therapists can be assigned as therapist' })
       return
     }
+    if (!therapist.isVerifiedTherapist) {
+      res.status(403).json({ message: 'Therapist is not verified' })
+      return
+    }
 
     if (!patient.roles.includes(UserRole.PATIENT)) {
       res

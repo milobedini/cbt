@@ -1,5 +1,3 @@
-import { ObjectId } from 'mongoose'
-
 export type User = {
   _id: string
   username: string
@@ -48,4 +46,14 @@ export type AddRemoveTherapistResponse = {
 export type AddRemoveTherapistInput = {
   therapistId: string
   patientId: string
+}
+
+export type ProfileResponse = {
+  _id: string
+  username: string
+  email: string
+  roles: string[]
+  isVerifiedTherapist: boolean
+  patients: string[]
+  therapist: string
 }
