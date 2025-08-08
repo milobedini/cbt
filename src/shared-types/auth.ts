@@ -40,9 +40,9 @@ export type PatientsResponse = User[]
 
 export type AddRemoveClientResponse = {
   message: string
-  patients: [ObjectId]
+  patients: string[]
 }
 
 export type AddRemoveClientInput = {
-  clientId: ObjectId
+  clientId: string
 }
