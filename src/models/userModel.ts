@@ -1,4 +1,4 @@
-import mongoose, { Document } from 'mongoose'
+import mongoose, { Document, Schema } from 'mongoose'
 
 enum UserRole {
   THERAPIST = 'therapist',
@@ -20,6 +20,7 @@ type IUser = Document & {
   lastLogin: Date
   roles: UserRole[]
   isVerifiedTherapist?: boolean
+  patients?: mongoose.Types.ObjectId[]
 }
 
 const userSchema = new mongoose.Schema<IUser>(
@@ -87,6 +88,11 @@ const userSchema = new mongoose.Schema<IUser>(
     isVerifiedTherapist: {
       type: Boolean,
       default: false,
+    },
+    patients: {
+      type: [Schema.Types.ObjectId],
+      ref: 'User',
+      default: [],
     },
   },
   {
