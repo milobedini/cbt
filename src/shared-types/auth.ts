@@ -55,5 +55,5 @@ export type ProfileResponse = {
   roles: string[]
   isVerifiedTherapist: boolean
   patients: string[]
-  therapist: string
+  therapist: User
 }
