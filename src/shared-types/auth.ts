@@ -42,3 +42,7 @@ export type AddRemoveClientResponse = {
   message: string
   patients: [ObjectId]
 }
+
+export type AddRemoveClientInput = {
+  clientId: ObjectId
+}
