@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import User, { UserRole } from '../models/userModel'
 import { errorHandler } from '../utils/errorHandler'
+import { Types } from 'mongoose'
 
 const getUser = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -109,17 +110,21 @@ const addRemoveClient = async (req: Request, res: Response): Promise<void> => {
       res.status(403).json({ message: 'Only patients can be added or removed' })
       return
     }
+    const clientObjectId = patient._id as Types.ObjectId
 
-    if (user.patients.includes(clientId)) {
-      user.patients = user.patients.filter((id) => id !== clientId)
+    let message = ''
+    const alreadyAdded = user.patients?.some((id) => id.equals(clientObjectId))
+
+    if (alreadyAdded) {
+      user.patients = user.patients.filter((id) => !id.equals(clientObjectId))
+      message = 'Client removed successfully'
     } else {
-      user.patients.push(clientId)
+      user.patients = [...(user.patients || []), clientObjectId]
+      message = 'Client added successfully'
     }
 
     await user.save()
-    res
-      .status(200)
-      .json({ message: 'Client updated successfully', patients: user.patients })
+    res.status(200).json({ message, patients: user.patients })
   } catch (error) {
     errorHandler(res, error)
   }
