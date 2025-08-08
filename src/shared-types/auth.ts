@@ -1,3 +1,5 @@
+import { ObjectId } from 'mongoose'
+
 export type User = {
   _id: string
   username: string
@@ -35,3 +37,8 @@ export type VerifyInput = {
 }
 
 export type PatientsResponse = User[]
+
+export type AddRemoveClientResponse = {
+  message: string
+  patients: [ObjectId]
+}
