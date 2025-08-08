@@ -26,6 +26,11 @@ connectDB()
 
 app.use(express.json())
 app.use(cookieParser())
+app.use((req, res, next) => {
+  const { url } = req
+  console.log('Server hit', url)
+  next()
+})
 app.use(
   cors({
     origin: (origin, callback) => {

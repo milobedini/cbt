@@ -78,7 +78,7 @@ const getClients = async (req: Request, res: Response): Promise<void> => {
     )
 
     if (!patients || !patients.length) {
-      res.status(404).json({ message: 'No clients found' })
+      res.status(200).json([])
       return
     }
     res.status(200).json(patients)
