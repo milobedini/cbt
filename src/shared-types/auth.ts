@@ -6,7 +6,8 @@ export type User = {
 
 export type AuthUser = User & {
   roles: string[]
-  isVerifiedTherapist: boolean
+  isVerifiedTherapist?: boolean
+  patients?: string[]
 }
 
 export type UserRole = 'therapist' | 'admin' | 'patient'
