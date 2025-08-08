@@ -1,5 +1,5 @@
 import {
-  addRemoveClient,
+  addRemoveTherapist,
   getAllPatients,
   getClients,
   getUser,
@@ -10,6 +10,6 @@ const router = express.Router()
 router.get('/', getUser)
 router.get('/patients', getAllPatients)
 router.get('/clients', getClients)
-router.post('/clients', addRemoveClient)
+router.post('/assign', addRemoveTherapist)
 
 export default router

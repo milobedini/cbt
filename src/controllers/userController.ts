@@ -8,7 +8,7 @@ const getUser = async (req: Request, res: Response): Promise<void> => {
     const userId = req.user?._id
     const user = await User.findById(
       userId,
-      '_id username email roles isVerifiedTherapist patients'
+      '_id username email roles isVerifiedTherapist patients therapist'
     )
     if (!user) {
       res.status(404).json({ message: 'User not found' })
@@ -25,7 +25,7 @@ const getAllPatients = async (req: Request, res: Response): Promise<void> => {
     const userId = req.user?._id
     const user = await User.findById(
       userId,
-      '_id username email roles isVerifiedTherapist'
+      '_id username email roles isVerifiedTherapist patients'
     )
     if (!user) {
       res.status(404).json({ message: 'User not found' })
@@ -40,7 +40,7 @@ const getAllPatients = async (req: Request, res: Response): Promise<void> => {
     }
     const patients = await User.find(
       { roles: UserRole.PATIENT },
-      '_id username email'
+      '_id username email therapist'
     )
 
     if (!patients || !patients.length) {
@@ -74,7 +74,7 @@ const getClients = async (req: Request, res: Response): Promise<void> => {
 
     const patients = await User.find(
       { _id: { $in: user.patients } },
-      '_id username email'
+      '_id username email therapist'
     )
 
     if (!patients || !patients.length) {
@@ -87,47 +87,97 @@ const getClients = async (req: Request, res: Response): Promise<void> => {
   }
 }
 
-const addRemoveClient = async (req: Request, res: Response): Promise<void> => {
+const addRemoveTherapist = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const userId = req.user?._id
-    const { clientId } = req.body
+    const { therapistId, patientId } = req.body
 
     const user = await User.findById(userId)
     if (!user) {
-      res.status(404).json({ message: 'User not found' })
+      res.status(404).json({ message: 'Not logged in' })
       return
-    }
-    if (!user.patients) {
-      user.patients = []
     }
 
-    const patient = await User.findById(clientId)
+    if (
+      !user.roles.includes(UserRole.ADMIN) &&
+      !user.roles.includes(UserRole.THERAPIST)
+    ) {
+      res.status(403).json({ message: 'Access denied' })
+      return
+    }
+
+    const patient = await User.findById(patientId)
     if (!patient) {
-      res.status(404).json({ message: 'Client not found' })
+      res.status(404).json({ message: 'Patient not found' })
       return
     }
+
+    const therapist = await User.findById(therapistId)
+    if (!therapist) {
+      res.status(404).json({ message: 'Therapist not found' })
+      return
+    }
+
+    if (!therapist.roles.includes(UserRole.THERAPIST)) {
+      res
+        .status(403)
+        .json({ message: 'Only therapists can be assigned as therapist' })
+      return
+    }
+
     if (!patient.roles.includes(UserRole.PATIENT)) {
-      res.status(403).json({ message: 'Only patients can be added or removed' })
+      res
+        .status(403)
+        .json({ message: 'Only patients can be assigned as patient' })
       return
     }
-    const clientObjectId = patient._id as Types.ObjectId
+
+    const patientIdObj = patient._id as Types.ObjectId
+    const therapistIdObj = therapist._id as Types.ObjectId
+
+    const alreadyAssigned =
+      patient.therapist?.toString() === therapistId.toString()
 
     let message = ''
-    const alreadyAdded = user.patients?.some((id) => id.equals(clientObjectId))
 
-    if (alreadyAdded) {
-      user.patients = user.patients.filter((id) => !id.equals(clientObjectId))
-      message = 'Client removed successfully'
+    if (alreadyAssigned) {
+      // 🔁 Remove therapist from patient
+      patient.therapist = undefined
+
+      // 🔁 Remove patient from therapist.patients list
+      therapist.patients = (therapist.patients || []).filter(
+        (id) => !id.equals(patientIdObj)
+      )
+
+      message = 'Therapist removed from patient'
     } else {
-      user.patients = [...(user.patients || []), clientObjectId]
-      message = 'Client added successfully'
+      // ➕ Assign therapist to patient
+      patient.therapist = therapistIdObj
+
+      // ➕ Add patient to therapist’s list if not already present
+      const alreadyInList = (therapist.patients || []).some((id) =>
+        id.equals(patientIdObj)
+      )
+
+      if (!alreadyInList) {
+        therapist.patients = [...(therapist.patients || []), patientIdObj]
+      }
+
+      message = 'Therapist assigned to patient'
     }
 
-    await user.save()
-    res.status(200).json({ message, patients: user.patients })
+    await patient.save()
+    await therapist.save()
+
+    res
+      .status(200)
+      .json({ message, patient, therapistPatients: therapist.patients })
   } catch (error) {
     errorHandler(res, error)
   }
 }
 
-export { getUser, getAllPatients, getClients, addRemoveClient }
+export { getUser, getAllPatients, getClients, addRemoveTherapist }

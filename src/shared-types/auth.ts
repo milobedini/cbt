@@ -10,6 +10,7 @@ export type AuthUser = User & {
   roles: string[]
   isVerifiedTherapist?: boolean
   patients?: string[]
+  therapist?: string
 }
 
 export type UserRole = 'therapist' | 'admin' | 'patient'
@@ -38,11 +39,13 @@ export type VerifyInput = {
 
 export type PatientsResponse = User[]
 
-export type AddRemoveClientResponse = {
+export type AddRemoveTherapistResponse = {
   message: string
-  patients: string[]
+  patient: AuthUser
+  therapistPatients: string[]
 }
 
-export type AddRemoveClientInput = {
-  clientId: string
+export type AddRemoveTherapistInput = {
+  therapistId: string
+  patientId: string
 }
