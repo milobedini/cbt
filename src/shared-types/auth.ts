@@ -37,7 +37,7 @@ export type VerifyInput = {
   verificationCode: string
 }
 
-export type PatientsResponse = User[]
+export type PatientsResponse = AuthUser[]
 
 export type AddRemoveTherapistResponse = {
   message: string
