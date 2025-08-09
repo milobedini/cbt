@@ -9,6 +9,7 @@ type IModule = Document & {
   updatedAt: Date
   disclaimer?: string
   imageUrl?: string
+  enrolled?: Types.ObjectId[]
 }
 
 const moduleSchema = new mongoose.Schema<IModule>(
@@ -23,6 +24,7 @@ const moduleSchema = new mongoose.Schema<IModule>(
     },
     disclaimer: String,
     imageUrl: String,
+    enrolled: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   },
   { timestamps: true, collection: 'modules' }
 )

@@ -164,3 +164,13 @@ export type CreateScoreBandInput = {
   label: string
   interpretation: string
 }
+
+export type EnrolInput = {
+  patientId: string
+  moduleId: string
+}
+
+export type EnrolResponse = {
+  success: boolean
+  message: string
+}
