@@ -12,6 +12,7 @@ export type Module = {
   imageUrl?: string
   createdAt: string
   updatedAt: string
+  enrolled?: string[]
 }
 
 export type ProgramBase = {
