@@ -66,6 +66,7 @@ export type ProfileResponse = {
   _id: string
   username: string
   email: string
+  name?: string
   roles: UserRole[]
   isVerifiedTherapist: boolean
   patients: string[]
@@ -284,7 +285,10 @@ export type MyAttemptsResponse = {
 // ==================================
 // API: Therapist views (join at read-time)
 // ==================================
-export type TherapistUserPreview = Pick<AuthUser, '_id' | 'username' | 'email'>
+export type TherapistUserPreview = Pick<
+  AuthUser,
+  '_id' | 'username' | 'email' | 'name'
+>
 export type TherapistModulePreview = Pick<Module, '_id' | 'title'>
 
 export type TherapistLatestRow = {
