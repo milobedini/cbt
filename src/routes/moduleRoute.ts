@@ -6,14 +6,22 @@ import {
   getDetailedModuleById,
   enrollUnenrollUserInModule,
 } from '../controllers/moduleController'
+import {
+  startAttempt, // <-- add
+} from '../controllers/attemptsController' // <-- add
 import authenticateUser from '../middleware/authMiddleware'
 
 const router = express.Router()
 
 router.get('/', getModules)
-router.get('/:id', getModuleById)
+// ⚠️ Order matters: detail before :id
 router.get('/detail/:id', getDetailedModuleById)
+router.get('/:id', getModuleById)
+
 router.post('/', authenticateUser, createModule)
 router.post('/assign', authenticateUser, enrollUnenrollUserInModule)
+
+// ✅ Start a new attempt for a module (patient)
+router.post('/:moduleId/attempts', authenticateUser, startAttempt)
 
 export default router

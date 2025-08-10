@@ -48,22 +48,38 @@ const getDetailedModuleById = async (req: Request, res: Response) => {
 
 const createModule = async (req: Request, res: Response) => {
   try {
-    const { title, description, imageUrl } = req.body
+    const { title, description, imageUrl, program, type, disclaimer } = req.body
 
-    if (!title || !description) {
+    if (!title || !description || !program || !type) {
       res
         .status(400)
-        .json({ success: false, message: 'Title and description are required' })
+        .json({
+          success: false,
+          message: 'title, description, program, and type are required',
+        })
       return
     }
 
-    const newModule = new Module({
+    const allowed = ['questionnaire', 'psychoeducation', 'exercise']
+    if (!allowed.includes(type)) {
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: `type must be one of ${allowed.join(', ')}`,
+        })
+      return
+    }
+
+    const newModule = await Module.create({
       title,
       description,
       imageUrl,
+      program,
+      type,
+      disclaimer,
     })
 
-    await newModule.save()
     res.status(201).json({ success: true, module: newModule })
   } catch (error) {
     errorHandler(res, error)

@@ -4,10 +4,13 @@ import authRouter from './routes/authRoute'
 import userRouter from './routes/userRoute'
 import moduleRouter from './routes/moduleRoute'
 import programRouter from './routes/programRoute'
+import attemptRouter from './routes/attemptsRoute'
+import assignmentRouter from './routes/assignmentsRoute'
 import connectDB from './config/database'
 import cookieParser from 'cookie-parser'
 import authenticateUser from './middleware/authMiddleware'
 import cors from 'cors'
+dotenv.config()
 
 const isDev = process.env.NODE_ENV !== 'production'
 
@@ -16,8 +19,6 @@ const allowedOrigins = [
   'https://bwell--8b1gx70fk3.expo.app/',
   process.env.CLIENT_URL,
 ].filter(Boolean)
-
-dotenv.config()
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -53,6 +54,8 @@ app.use('/api', authRouter)
 app.use('/api/user', authenticateUser, userRouter)
 app.use('/api/modules', moduleRouter)
 app.use('/api/programs', programRouter)
+app.use('/api/attempts', authenticateUser, attemptRouter) // save/submit by attemptId
+app.use('/api/assignments', authenticateUser, assignmentRouter)
 
 app.get('/', (req, res) => {
   res.send('JWT Authentication System is running!')
