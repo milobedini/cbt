@@ -41,6 +41,7 @@ export type LoginInput = {
   password: string
 }
 
+// New
 export type UpdateNameInput = {
   newName: string
   userId: string
