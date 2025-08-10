@@ -10,6 +10,7 @@ type IUser = Document & {
   username: string
   email: string
   password: string
+  name?: string
   createdAt: Date
   updatedAt: Date
   verificationCode?: string
@@ -54,6 +55,13 @@ const userSchema = new mongoose.Schema<IUser>(
       required: [true, 'Password is required!'],
       minlength: [8, 'Password must be at least 8 characters long!'],
       select: false,
+    },
+    name: {
+      type: String,
+      required: [true, 'Name is required!'],
+      trim: true,
+      minlength: [2, 'Name must be at least 2 characters long!'],
+      maxlength: [50, 'Name cannot exceed 50 characters!'],
     },
     verificationCode: {
       type: String,

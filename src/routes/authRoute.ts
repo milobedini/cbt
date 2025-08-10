@@ -5,6 +5,7 @@ import {
   verifyEmail,
   forgotPassword,
   resetPassword,
+  updateName,
 } from '../controllers/authController'
 import express from 'express'
 const router = express.Router()
@@ -16,5 +17,6 @@ router.post('/logout', logoutUser)
 
 router.post('/forgot-password', forgotPassword)
 router.post('/reset-password/:token', resetPassword)
+router.put('/update-name', updateName)
 
 export default router

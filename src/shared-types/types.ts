@@ -11,6 +11,7 @@ export type User = {
   _id: string
   username: string
   email: string
+  name?: string
 }
 
 export type UserRole = 'therapist' | 'admin' | 'patient'

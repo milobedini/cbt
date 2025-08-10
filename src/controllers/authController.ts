@@ -272,6 +272,32 @@ const resetPassword = async (req: Request, res: Response): Promise<void> => {
   }
 }
 
+const updateName = async (req: Request, res: Response): Promise<void> => {
+  const { newName, userId } = req.body
+
+  try {
+    const user = await User.findById(userId)
+    if (!user) {
+      res.status(404).json({ message: 'User not found!' })
+      return
+    }
+
+    user.name = newName
+    await user.save()
+
+    res.status(200).json({
+      success: true,
+      message: 'Name updated successfully!',
+      user: {
+        _id: user._id,
+        name: user.name,
+      },
+    })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
 export {
   registerUser,
   verifyEmail,
@@ -279,4 +305,5 @@ export {
   logoutUser,
   forgotPassword,
   resetPassword,
+  updateName,
 }
