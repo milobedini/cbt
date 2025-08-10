@@ -41,6 +41,11 @@ export type LoginInput = {
   password: string
 }
 
+export type UpdateNameInput = {
+  newName: string
+  userId: string
+}
+
 export type VerifyInput = { verificationCode: string }
 
 export type PatientsResponse = AuthUser[]
