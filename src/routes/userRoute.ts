@@ -10,6 +10,8 @@ import {
   getTherapistLatest,
   getPatientModuleTimeline,
 } from '../controllers/attemptsController'
+import { getAvailableModules } from '../controllers/moduleController'
+import { getMyAssignments } from '../controllers/assignmentsController'
 
 const router = express.Router()
 
@@ -20,6 +22,8 @@ router.post('/assign', addRemoveTherapist)
 
 // ✅ Patient: my submitted attempts (cursor-paginated)
 router.get('/attempts', getMyAttempts)
+router.get('/available', getAvailableModules)
+router.get('/assignments', getMyAssignments) // ?status=active|completed|all
 
 // ✅ Therapist: latest per (patient,module)
 router.get('/therapist/attempts/latest', getTherapistLatest)

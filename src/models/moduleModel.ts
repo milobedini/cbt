@@ -10,6 +10,7 @@ type IModule = Document & {
   disclaimer?: string
   imageUrl?: string
   enrolled?: Types.ObjectId[]
+  accessPolicy: 'open' | 'enrolled' | 'assigned'
 }
 
 const moduleSchema = new mongoose.Schema<IModule>(
@@ -25,6 +26,11 @@ const moduleSchema = new mongoose.Schema<IModule>(
     disclaimer: String,
     imageUrl: String,
     enrolled: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    accessPolicy: {
+      type: String,
+      enum: ['open', 'enrolled', 'assigned'],
+      default: 'enrolled',
+    },
   },
   { timestamps: true, collection: 'modules' }
 )

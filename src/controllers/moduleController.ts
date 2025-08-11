@@ -4,6 +4,8 @@ import { errorHandler } from '../utils/errorHandler'
 import Question from '../models/questionModel'
 import ScoreBand from '../models/scoreBandModel'
 import User, { UserRole } from '../models/userModel'
+import ModuleAssignment from '../models/moduleAssignmentModel'
+import { Types } from 'mongoose'
 
 const getModules = async (req: Request, res: Response) => {
   try {
@@ -32,15 +34,59 @@ const getDetailedModuleById = async (req: Request, res: Response) => {
   const { id } = req.params
   try {
     const module = await Module.findById(id).populate('program')
-    const questions = await Question.find({ module: module?._id }).sort({
-      order: 1,
-    })
-    const scoreBands = await ScoreBand.find({ module: module?._id })
     if (!module) {
       res.status(404).json({ success: false, message: 'Module not found' })
       return
     }
-    res.status(200).json({ success: true, module, questions, scoreBands })
+
+    const questions = await Question.find({ module: module._id }).sort({
+      order: 1,
+    })
+    const scoreBands = await ScoreBand.find({ module: module._id })
+
+    let canStart: boolean | undefined
+    let canStartReason:
+      | 'ok'
+      | 'not_enrolled'
+      | 'requires_assignment'
+      | 'unauthenticated'
+      | undefined
+    let activeAssignmentId: string | undefined
+
+    if (!req.user?._id) {
+      canStart = undefined
+      canStartReason = 'unauthenticated'
+    } else if (module.accessPolicy === 'open') {
+      canStart = true
+      canStartReason = 'ok'
+    } else if (module.accessPolicy === 'enrolled') {
+      const enrolled = await Module.exists({
+        _id: module._id,
+        enrolled: req.user._id,
+      })
+      canStart = !!enrolled
+      canStartReason = enrolled ? 'ok' : 'not_enrolled'
+    } else {
+      // 'assigned'
+      const a = await ModuleAssignment.findOne({
+        user: req.user._id,
+        module: module._id,
+        status: { $in: ['assigned', 'in_progress'] },
+      })
+        .select('_id')
+        .lean()
+      canStart = !!a
+      canStartReason = a ? 'ok' : 'requires_assignment'
+      activeAssignmentId = a?._id?.toString()
+    }
+
+    res.status(200).json({
+      success: true,
+      module,
+      questions,
+      scoreBands,
+      meta: { canStart, canStartReason, activeAssignmentId },
+    })
   } catch (error) {
     errorHandler(res, error)
   }
@@ -48,26 +94,39 @@ const getDetailedModuleById = async (req: Request, res: Response) => {
 
 const createModule = async (req: Request, res: Response) => {
   try {
-    const { title, description, imageUrl, program, type, disclaimer } = req.body
+    const {
+      title,
+      description,
+      imageUrl,
+      program,
+      type,
+      disclaimer,
+      accessPolicy,
+    } = req.body
 
     if (!title || !description || !program || !type) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: 'title, description, program, and type are required',
-        })
+      res.status(400).json({
+        success: false,
+        message: 'title, description, program, and type are required',
+      })
       return
     }
 
-    const allowed = ['questionnaire', 'psychoeducation', 'exercise']
-    if (!allowed.includes(type)) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: `type must be one of ${allowed.join(', ')}`,
-        })
+    const allowedTypes = ['questionnaire', 'psychoeducation', 'exercise']
+    if (!allowedTypes.includes(type)) {
+      res.status(400).json({
+        success: false,
+        message: `type must be one of ${allowedTypes.join(', ')}`,
+      })
+      return
+    }
+
+    const allowedPolicies = ['open', 'enrolled', 'assigned']
+    if (accessPolicy && !allowedPolicies.includes(accessPolicy)) {
+      res.status(400).json({
+        success: false,
+        message: `accessPolicy must be one of ${allowedPolicies.join(', ')}`,
+      })
       return
     }
 
@@ -78,6 +137,7 @@ const createModule = async (req: Request, res: Response) => {
       program,
       type,
       disclaimer,
+      ...(accessPolicy ? { accessPolicy } : {}), // defaults to 'enrolled' in schema
     })
 
     res.status(201).json({ success: true, module: newModule })
@@ -128,6 +188,18 @@ const enrollUnenrollUserInModule = async (req: Request, res: Response) => {
       return
     }
 
+    // ⛔ prevent manual enrol for assignment-only modules (allow admin override if you want)
+    if (
+      module.accessPolicy === 'assigned' &&
+      !user.roles.includes(UserRole.ADMIN)
+    ) {
+      res.status(400).json({
+        success: false,
+        message: 'This module is assignment-only. Use an assignment instead.',
+      })
+      return
+    }
+
     const patient = await User.findById(patientId)
     if (!patient) {
       res.status(404).json({ success: false, message: 'Patient not found' })
@@ -174,10 +246,101 @@ const enrollUnenrollUserInModule = async (req: Request, res: Response) => {
   }
 }
 
+const getAvailableModules = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?._id as Types.ObjectId
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' })
+      return
+    }
+
+    // 1) Active assignments for this user (assigned/in_progress)
+    const activeAsgs = await ModuleAssignment.find({
+      user: userId,
+      status: { $in: ['assigned', 'in_progress'] },
+    })
+      .select('_id module status dueAt')
+      .lean()
+
+    // Pick one assignment per module (prefer in_progress, then earliest dueAt)
+    const byModule = new Map<string, (typeof activeAsgs)[number]>()
+    for (const a of activeAsgs) {
+      const k = String(a.module)
+      const prev = byModule.get(k)
+      const rank = (x: any) => (x.status === 'in_progress' ? 1 : 2)
+      if (
+        !prev ||
+        rank(a) < rank(prev) ||
+        (a.dueAt && (!prev.dueAt || a.dueAt < prev.dueAt))
+      ) {
+        byModule.set(k, a)
+      }
+    }
+    const assignedIds = Array.from(byModule.keys()).map(
+      (id) => new Types.ObjectId(id)
+    )
+
+    // 2) Fetch modules the user can see
+    const modules = await Module.find({
+      $or: [
+        { accessPolicy: 'open' },
+        { accessPolicy: 'enrolled', enrolled: userId },
+        { _id: { $in: assignedIds } }, // include assignment-only modules
+      ],
+    })
+      .select(
+        '_id title description program type disclaimer imageUrl accessPolicy createdAt updatedAt'
+      )
+      .populate('program', '_id title description')
+      .sort({ createdAt: -1 })
+      .lean()
+
+    // 3) Decorate with meta info for the client
+    const items = modules.map((m: any) => {
+      const a = byModule.get(String(m._id))
+      const source: Array<'open' | 'enrolled' | 'assigned'> = []
+      if (m.accessPolicy === 'open') source.push('open')
+      if (m.accessPolicy === 'enrolled') source.push('enrolled')
+      if (a) source.push('assigned')
+
+      let canStart = false
+      let canStartReason: 'ok' | 'not_enrolled' | 'requires_assignment' = 'ok'
+
+      if (m.accessPolicy === 'open') {
+        canStart = true
+      } else if (m.accessPolicy === 'enrolled') {
+        // We only included when enrolled OR assigned; both are OK to start
+        canStart = true
+      } else {
+        // assigned
+        canStart = !!a
+        if (!a) canStartReason = 'requires_assignment'
+      }
+
+      return {
+        module: m,
+        meta: {
+          canStart,
+          canStartReason,
+          source,
+          activeAssignmentId: a?._id?.toString(),
+          assignmentStatus: a?.status,
+          dueAt: a?.dueAt,
+        },
+      }
+    })
+
+    res.status(200).json({ success: true, items })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
 export {
   getModules,
   getModuleById,
   createModule,
   getDetailedModuleById,
   enrollUnenrollUserInModule,
+  getAvailableModules,
 }

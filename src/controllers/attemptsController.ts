@@ -4,9 +4,8 @@ import Module from '../models/moduleModel'
 import Question from '../models/questionModel'
 import ScoreBand from '../models/scoreBandModel'
 import User, { UserRole } from '../models/userModel'
-// If you named it differently, update import:
-import ModuleAttempt from '../models/moduleAttemptModel' // your new model
-import ModuleAssignment from '../models/moduleAssignmentModel' // optional
+import ModuleAttempt from '../models/moduleAttemptModel'
+import ModuleAssignment from '../models/moduleAssignmentModel'
 import { errorHandler } from '../utils/errorHandler'
 import { DateTime } from 'luxon'
 
@@ -30,6 +29,29 @@ function isTherapist(user: any) {
 }
 function isVerifiedTherapist(user: any) {
   return isTherapist(user) && !!user.isVerifiedTherapist
+}
+// enrollment check based on Module.enrolled array
+async function isEnrolled(userId: Types.ObjectId, moduleId: Types.ObjectId) {
+  const mod = await Module.findOne({ _id: moduleId, enrolled: userId })
+    .select('_id')
+    .lean()
+  return !!mod
+}
+// active assignment finder (assigned or in_progress)
+async function findActiveAssignment(
+  userId: Types.ObjectId,
+  moduleId: Types.ObjectId,
+  therapistId?: Types.ObjectId
+) {
+  const match: any = {
+    user: userId,
+    module: moduleId,
+    status: { $in: ['assigned', 'in_progress'] },
+  }
+  if (therapistId) match.therapist = therapistId
+  return ModuleAssignment.findOne(match)
+    .sort({ dueAt: 1, createdAt: -1 })
+    .lean()
 }
 
 // Does therapist have access to this patient?
@@ -81,6 +103,8 @@ export const startAttempt = async (req: Request, res: Response) => {
   try {
     const userId = req.user?._id as Types.ObjectId
     const { moduleId } = req.params
+    const { assignmentId } = (req.body as { assignmentId?: string }) || {}
+
     if (!userId) {
       res.status(401).json({ success: false, message: 'Unauthorized' })
       return
@@ -92,7 +116,46 @@ export const startAttempt = async (req: Request, res: Response) => {
       return
     }
 
-    // Who is the user’s therapist at start (denormalize for fast therapist dashboards)?
+    // link (or find) assignment if provided/required
+    let assignment: any = null
+    if (assignmentId) {
+      assignment = await ModuleAssignment.findOne({
+        _id: assignmentId,
+        user: userId,
+        module: mod._id,
+        status: { $in: ['assigned', 'in_progress'] },
+      })
+      if (!assignment) {
+        res.status(400).json({
+          success: false,
+          message: 'Assignment not found or not active',
+        })
+        return
+      }
+    } else if (mod.accessPolicy === 'assigned') {
+      assignment = await findActiveAssignment(userId, mod._id as Types.ObjectId)
+      if (!assignment) {
+        res.status(403).json({
+          success: false,
+          message: 'An active assignment is required to start this module',
+        })
+        return
+      }
+    }
+
+    // enforce enrollment for self-starts (when no assignment or policy requires it)
+    if (mod.accessPolicy === 'enrolled' && !assignment) {
+      const enrolled = await isEnrolled(userId, mod._id as Types.ObjectId)
+      if (!enrolled) {
+        res.status(403).json({
+          success: false,
+          message: 'You must be enrolled in this module to start it',
+        })
+        return
+      }
+    }
+
+    // therapist snapshot
     const me = await User.findById(userId, 'therapist')
     const therapistId = me?.therapist as Types.ObjectId | undefined
 
@@ -104,7 +167,6 @@ export const startAttempt = async (req: Request, res: Response) => {
       return
     }
 
-    // Next iteration number
     const count = await ModuleAttempt.countDocuments({
       user: userId,
       module: mod._id,
@@ -122,8 +184,17 @@ export const startAttempt = async (req: Request, res: Response) => {
       startedAt: new Date(),
       lastInteractionAt: new Date(),
       iteration,
+      dueAt: assignment?.dueAt, // carry over due date
       moduleSnapshot: snapshot,
     })
+
+    // If starting from an assignment, mark it in progress
+    if (assignment && assignment.status === 'assigned') {
+      await ModuleAssignment.updateOne(
+        { _id: assignment._id },
+        { status: 'in_progress', latestAttempt: attempt._id }
+      )
+    }
 
     res.status(201).json({ success: true, attempt })
   } catch (error) {
@@ -194,7 +265,7 @@ export const submitAttempt = async (req: Request, res: Response) => {
   try {
     const userId = req.user?._id as Types.ObjectId
     const { attemptId } = req.params
-    const { assignmentId } = (req.body as { assignmentId?: string }) || {}
+    let { assignmentId } = (req.body as { assignmentId?: string }) || {}
 
     const attempt = await ModuleAttempt.findById(attemptId)
     if (!attempt) {
@@ -259,6 +330,15 @@ export const submitAttempt = async (req: Request, res: Response) => {
     await attempt.save()
 
     // Optional: sync assignment
+    if (!assignmentId) {
+      const possible = await findActiveAssignment(
+        attempt.user as Types.ObjectId,
+        attempt.module as Types.ObjectId,
+        attempt.therapist as Types.ObjectId
+      )
+      // Auto find active assignment, if not explicitly provided
+      if (possible) assignmentId = String(possible._id)
+    }
     if (assignmentId) {
       await ModuleAssignment.findByIdAndUpdate(assignmentId, {
         latestAttempt: attempt._id,
@@ -273,60 +353,101 @@ export const submitAttempt = async (req: Request, res: Response) => {
 }
 
 // GET /me/attempts?moduleId=&limit=&cursor=ISO
-// Patient history (submitted only), newest first, cursor by completedAt
 export const getMyAttempts = async (req: Request, res: Response) => {
-  const userId = req.user?._id
-  const { moduleId, limit = '20', cursor } = req.query
-  const lim = Math.min(parseInt(limit as string, 10) || 20, 100)
+  try {
+    const userId = req.user?._id
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' })
+      return
+    }
 
-  const match: any = { user: userId, status: 'submitted' }
-  if (moduleId) match.module = new Types.ObjectId(String(moduleId))
-  if (cursor) match.completedAt = { $lt: new Date(String(cursor)) }
+    const {
+      moduleId,
+      limit = '20',
+      cursor,
+      status = 'submitted',
+    } = req.query as {
+      moduleId?: string
+      limit?: string
+      cursor?: string
+      status?: 'submitted' | 'active'
+    }
 
-  const pipeline = [
-    { $match: match },
-    { $sort: { completedAt: -1 } },
-    { $limit: lim },
-    {
-      $lookup: {
-        from: 'scoreBands',
-        let: { m: '$module', s: '$totalScore' },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $eq: ['$module', '$$m'] },
-                  { $lte: ['$min', '$$s'] },
-                  { $gte: ['$max', '$$s'] },
-                ],
+    const lim = Math.min(parseInt(limit, 10) || 20, 100)
+
+    if (status === 'active') {
+      // Drafts/in-progress, newest interaction first
+      const match: any = { user: userId, status: 'started' }
+      if (moduleId) match.module = new Types.ObjectId(String(moduleId))
+
+      const rows = await ModuleAttempt.find(match)
+        .sort({ lastInteractionAt: -1 })
+        .limit(lim)
+        .select(
+          '_id module program moduleType startedAt lastInteractionAt iteration userNote dueAt'
+        )
+        .lean()
+
+      res.status(200).json({ success: true, attempts: rows, nextCursor: null })
+      return
+    }
+
+    // Default: submitted (with score band join)
+    const match: any = { user: userId, status: 'submitted' }
+    if (moduleId) match.module = new Types.ObjectId(String(moduleId))
+    if (cursor) match.completedAt = { $lt: new Date(String(cursor)) }
+
+    const pipeline = [
+      { $match: match },
+      { $sort: { completedAt: -1, _id: -1 } },
+      { $limit: lim },
+      {
+        $lookup: {
+          from: 'scoreBands',
+          let: { m: '$module', s: '$totalScore' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$module', '$$m'] },
+                    { $lte: ['$min', '$$s'] },
+                    { $gte: ['$max', '$$s'] },
+                  ],
+                },
               },
             },
-          },
-          { $project: { _id: 1, label: 1, interpretation: 1, min: 1, max: 1 } },
-        ],
-        as: 'band',
+            {
+              $project: { _id: 1, label: 1, interpretation: 1, min: 1, max: 1 },
+            },
+          ],
+          as: 'band',
+        },
       },
-    },
-    { $addFields: { band: { $arrayElemAt: ['$band', 0] } } },
-    {
-      $project: {
-        _id: 1,
-        module: 1,
-        program: 1,
-        moduleType: 1,
-        totalScore: 1,
-        scoreBandLabel: 1,
-        completedAt: 1,
-        weekStart: 1,
-        iteration: 1,
-        band: 1,
+      { $addFields: { band: { $arrayElemAt: ['$band', 0] } } },
+      {
+        $project: {
+          _id: 1,
+          module: 1,
+          program: 1,
+          moduleType: 1,
+          totalScore: 1,
+          scoreBandLabel: 1,
+          completedAt: 1,
+          weekStart: 1,
+          iteration: 1,
+          band: 1,
+        },
       },
-    },
-  ]
+    ] as any[]
 
-  const rows = await (ModuleAttempt as any).aggregate(pipeline)
-  res.status(200).json({ success: true, attempts: rows, nextCursor: null })
+    const rows = await (ModuleAttempt as any).aggregate(pipeline)
+    // simple time cursor (ISO). If you want 2-field cursor, we can upgrade later.
+    const nextCursor = null
+    res.status(200).json({ success: true, attempts: rows, nextCursor })
+  } catch (error) {
+    errorHandler(res, error)
+  }
 }
 
 // GET /therapist/attempts/latest?limit=200

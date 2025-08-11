@@ -28,6 +28,19 @@ export const createAssignment = async (req: Request, res: Response) => {
       return
     }
 
+    if (mod.accessPolicy !== 'assigned') {
+      const isAlreadyEnrolled = await Module.exists({
+        _id: moduleId,
+        enrolled: userId,
+      })
+      if (!isAlreadyEnrolled) {
+        await Module.updateOne(
+          { _id: moduleId },
+          { $addToSet: { enrolled: userId } }
+        )
+      }
+    }
+
     const asg = await ModuleAssignment.create({
       user: userId,
       therapist: therapistId,
@@ -97,6 +110,40 @@ export const updateAssignmentStatus = async (req: Request, res: Response) => {
       return
     }
     res.status(200).json({ success: true, assignment: asg })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+export const getMyAssignments = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?._id as Types.ObjectId
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' })
+      return
+    }
+
+    const { status = 'active' } = req.query as {
+      status?: 'active' | 'completed' | 'all'
+    }
+    const statuses =
+      status === 'active'
+        ? ['assigned', 'in_progress']
+        : status === 'completed'
+        ? ['completed']
+        : ['assigned', 'in_progress', 'completed', 'cancelled']
+
+    const items = await ModuleAssignment.find({
+      user: userId,
+      status: { $in: statuses },
+    })
+      .sort({ dueAt: 1, createdAt: -1 })
+      .populate('module', '_id title type accessPolicy')
+      .populate('program', '_id title description')
+      .populate('latestAttempt', '_id completedAt totalScore scoreBandLabel')
+      .lean()
+
+    res.status(200).json({ success: true, assignments: items })
   } catch (error) {
     errorHandler(res, error)
   }

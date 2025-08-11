@@ -105,6 +105,7 @@ export type Module = {
   createdAt: string
   updatedAt: string
   enrolled?: string[] // user ids (if you keep this)
+  accessPolicy: 'open' | 'enrolled' | 'assigned'
 }
 
 // ==================================
@@ -250,6 +251,15 @@ export type ModuleDetailResponse = {
   module: Module
   questions: Question[]
   scoreBands: ScoreBand[]
+  meta?: {
+    canStart?: boolean
+    canStartReason?:
+      | 'ok'
+      | 'not_enrolled'
+      | 'requires_assignment'
+      | 'unauthenticated'
+    activeAssignmentId?: string
+  }
 }
 
 // ==================================
@@ -273,6 +283,7 @@ export type MyAttemptsQuery = {
   moduleId?: string
   limit?: number
   cursor?: Cursor
+  status?: 'submitted' | 'active'
 }
 
 export type MyAttemptsResponse = {
@@ -344,6 +355,7 @@ export type CreateModuleInput = {
   program: string
   disclaimer?: string
   imageUrl?: string
+  accessPolicy?: 'open' | 'enrolled' | 'assigned'
 }
 
 export type CreateQuestionInput = {
@@ -363,3 +375,56 @@ export type CreateScoreBandInput = {
 
 export type EnrolInput = { patientId: string; moduleId: string }
 export type EnrolResponse = { success: boolean; message: string }
+
+export type AvailableSourceTag = 'open' | 'enrolled' | 'assigned'
+
+export type AvailableModulesItem = {
+  module: Module
+  meta: {
+    canStart: boolean
+    canStartReason: 'ok' | 'not_enrolled' | 'requires_assignment'
+    source: AvailableSourceTag[] // why this module is visible
+    activeAssignmentId?: string
+    assignmentStatus?: 'assigned' | 'in_progress'
+    dueAt?: string
+  }
+}
+
+export type AvailableModulesResponse = {
+  success: boolean
+  items: AvailableModulesItem[]
+}
+
+export type AssignmentLatestAttemptPreview = {
+  _id: string
+  completedAt?: string
+  totalScore?: number
+  scoreBandLabel?: string
+}
+
+export type ModulePreviewForAssignment = Pick<
+  Module,
+  '_id' | 'title' | 'type' | 'accessPolicy'
+> & { program?: never } // prevent confusion—program is provided separately
+
+export type ProgramPreviewForAssignment = Pick<Program, '_id' | 'title'>
+
+export type MyAssignmentView = {
+  _id: string
+  user: string
+  therapist: string
+  status: AssignmentStatus
+  dueAt?: string
+  recurrence?: AssignmentRecurrence
+  notes?: string
+  module: ModulePreviewForAssignment
+  program: ProgramPreviewForAssignment
+  latestAttempt?: AssignmentLatestAttemptPreview
+  createdAt: string
+  updatedAt: string
+}
+
+export type MyAssignmentsResponse = {
+  success: boolean
+  assignments: MyAssignmentView[]
+}
