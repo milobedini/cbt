@@ -184,4 +184,51 @@ const addRemoveTherapist = async (
   }
 }
 
-export { getUser, getAllPatients, getClients, addRemoveTherapist }
+const adminVerifyTherapist = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?._id
+    const { therapistId } = req.body
+
+    const user = await User.findById(userId)
+    if (!user) {
+      res.status(404).json({ message: 'Not logged in' })
+      return
+    }
+
+    if (!user.roles.includes(UserRole.ADMIN)) {
+      res.status(403).json({ message: 'Only admins can verify therapists' })
+      return
+    }
+
+    const therapist = await User.findById(therapistId)
+    if (!therapist) {
+      res.status(404).json({ message: 'Therapist not found' })
+      return
+    }
+
+    if (!therapist.roles.includes(UserRole.THERAPIST)) {
+      res.status(403).json({ message: 'Only therapists can be verified' })
+      return
+    }
+
+    therapist.isVerifiedTherapist = true
+    await therapist.save()
+
+    res
+      .status(200)
+      .json({ message: 'Therapist verified successfully', therapist })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+export {
+  getUser,
+  getAllPatients,
+  getClients,
+  addRemoveTherapist,
+  adminVerifyTherapist,
+}

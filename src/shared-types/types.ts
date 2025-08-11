@@ -73,6 +73,15 @@ export type ProfileResponse = {
   therapist: User | null
 }
 
+export type VerifyTherapistInput = {
+  therapistId: string
+}
+
+export type VerifyTherapistResponse = {
+  message: string
+  therapist: AuthUser
+}
+
 // ==================================
 // Program & Module
 // ==================================

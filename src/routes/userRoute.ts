@@ -1,5 +1,6 @@
 import {
   addRemoveTherapist,
+  adminVerifyTherapist,
   getAllPatients,
   getClients,
   getUser,
@@ -19,6 +20,7 @@ router.get('/', getUser)
 router.get('/patients', getAllPatients)
 router.get('/clients', getClients)
 router.post('/assign', addRemoveTherapist)
+router.post('/verify', adminVerifyTherapist)
 
 // ✅ Patient: my submitted attempts (cursor-paginated)
 router.get('/attempts', getMyAttempts)
