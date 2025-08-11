@@ -40,7 +40,7 @@ const getAllPatients = async (req: Request, res: Response): Promise<void> => {
     }
     const patients = await User.find(
       { roles: UserRole.PATIENT },
-      '_id username email therapist'
+      '_id username email name therapist'
     )
 
     if (!patients || !patients.length) {
@@ -74,7 +74,7 @@ const getClients = async (req: Request, res: Response): Promise<void> => {
 
     const patients = await User.find(
       { _id: { $in: user.patients } },
-      '_id username email therapist'
+      '_id username email name therapist'
     )
 
     if (!patients || !patients.length) {

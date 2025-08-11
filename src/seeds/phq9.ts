@@ -4,42 +4,41 @@ import Question from '../models/questionModel'
 import ScoreBand from '../models/scoreBandModel'
 
 export async function seedPhq9() {
-  // 1. Program
+  // 1) Program
   const program = (await Program.findOneAndUpdate(
     { title: 'Depression' },
     {
       title: 'Depression',
-      description: 'Step‑by‑step CBT programme for low mood.',
+      description: 'Step-by-step CBT programme for low mood.',
     },
     { upsert: true, new: true }
   )) as IProgram
   console.log('✅ Program created/updated:', program._id)
 
-  // 2. Module shell
+  // 2) PHQ-9 module (accessPolicy: enrolled)
   const phq9 = (await Module.findOneAndUpdate(
-    { title: 'PHQ‑9', program: program._id },
+    { title: 'PHQ-9', program: program._id },
     {
-      title: 'PHQ‑9',
-      description: 'Patient Health Questionnaire‑9 (depression severity)',
+      title: 'PHQ-9',
+      description: 'Patient Health Questionnaire-9 (depression severity)',
       program: program._id,
       type: 'questionnaire',
+      accessPolicy: 'enrolled',
       disclaimer:
-        'The PHQ‑9 is a screening tool and does **not** replace professional diagnosis. ' +
-        'If you have thoughts of self‑harm, seek help immediately.',
+        'The PHQ-9 is a screening tool and does **not** replace professional diagnosis. ' +
+        'If you have thoughts of self-harm, seek help immediately.',
     },
     { upsert: true, new: true }
   )) as IModule
   console.log('✅ Module created/updated:', phq9._id)
-  const programHasModule = program.modules?.some((m) => m._id === phq9._id)
 
-  if (!programHasModule) {
-    await Program.findByIdAndUpdate(program._id, {
-      $addToSet: { modules: phq9._id }, // prevents duplicates
-    })
-    console.log('✅ PHQ‑9 module added to program.modules[]')
-  }
+  // Always safe with $addToSet (dedup)
+  await Program.findByIdAndUpdate(program._id, {
+    $addToSet: { modules: phq9._id },
+  })
+  console.log('✅ PHQ-9 added to program.modules[] (dedup)')
 
-  // 3. Questions (text from Patient.info) :contentReference[oaicite:0]{index=0}
+  // 3) Questions
   const phqText = [
     'Little interest or pleasure in doing things',
     'Feeling down, depressed, or hopeless',
@@ -67,9 +66,9 @@ export async function seedPhq9() {
     )
   )
   const questions = await Question.find({ module: phq9._id })
-  console.log(`✅ Questions count: ${questions.length}`)
+  console.log(`✅ PHQ-9 questions count: ${questions.length}`)
 
-  // 4. Score bands (0‑27 scale) :contentReference[oaicite:1]{index=1}
+  // 4) Score bands (0-27)
   const bands = [
     {
       min: 0,
@@ -111,9 +110,8 @@ export async function seedPhq9() {
       )
     )
   )
-
   const bandsCreated = await ScoreBand.find({ module: phq9._id })
-  console.log(`✅ Score bands count: ${bandsCreated.length}`)
+  console.log(`✅ PHQ-9 bands count: ${bandsCreated.length}`)
 }
 
 if (require.main === module) {

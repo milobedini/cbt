@@ -76,7 +76,7 @@ export const listAssignmentsForTherapist = async (
       status: { $in: ['assigned', 'in_progress'] },
     })
       .sort({ dueAt: 1, createdAt: -1 })
-      .populate('user', '_id username email')
+      .populate('user', '_id username email name')
       .populate('module', '_id title')
       .lean()
 

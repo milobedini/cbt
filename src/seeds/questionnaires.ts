@@ -25,10 +25,21 @@ async function upsertQuestionnaire(opts: {
   title: string
   description: string
   disclaimer: string
+  accessPolicy: 'open' | 'enrolled' | 'assigned' // NEW
+  imageUrl?: string // optional, for nicer demo
   questions: { text: string; choices: { text: string; score: number }[] }[]
   bands: { min: number; max: number; label: string; interpretation: string }[]
 }) {
-  const { programId, title, description, disclaimer, questions, bands } = opts
+  const {
+    programId,
+    title,
+    description,
+    disclaimer,
+    accessPolicy,
+    imageUrl,
+    questions,
+    bands,
+  } = opts
 
   const moduleDoc = (await Module.findOneAndUpdate(
     { title, program: programId },
@@ -38,6 +49,8 @@ async function upsertQuestionnaire(opts: {
       program: programId,
       type: 'questionnaire',
       disclaimer,
+      accessPolicy, // 👈 NEW
+      ...(imageUrl ? { imageUrl } : {}),
     },
     { upsert: true, new: true }
   )) as IModule
@@ -75,7 +88,7 @@ async function upsertQuestionnaire(opts: {
   console.log(`✅ ${title} score bands count:`, bCount)
 }
 
-/** Seed all (all under the Depression program) */
+/** Seed all (all under the Depression program, varied accessPolicy) */
 export async function seedQuestionnaires() {
   // Single program for all modules
   const depression = (await Program.findOneAndUpdate(
@@ -88,13 +101,15 @@ export async function seedQuestionnaires() {
   )) as IProgram
   console.log('✅ Program created/updated (Depression):', depression._id)
 
-  // --- GAD-7 (Anxiety) 0–21
+  // --- GAD-7 (Anxiety) 0–21  → ASSIGNED (therapist-directed)
   await upsertQuestionnaire({
     programId: depression._id as any,
     title: 'GAD-7',
     description: 'Generalized Anxiety Disorder 7-item (anxiety severity)',
     disclaimer:
       'This screener helps monitor anxiety but does not provide a diagnosis. If you are in crisis or feel unsafe, seek immediate support.',
+    accessPolicy: 'assigned',
+    imageUrl: 'https://placehold.co/600x400?text=GAD-7',
     questions: [
       'Feeling nervous, anxious, or on edge',
       'Not being able to stop or control worrying',
@@ -140,13 +155,15 @@ export async function seedQuestionnaires() {
     ],
   })
 
-  // --- PSS-10 (Perceived Stress) 0–40
+  // --- PSS-10 (Perceived Stress) 0–40 → OPEN (self-serve)
   await upsertQuestionnaire({
     programId: depression._id as any,
     title: 'PSS-10',
     description: 'Perceived Stress Scale (10-item)',
     disclaimer:
       'This scale measures how stressful you find your life. It is a self-report measure, not a diagnosis.',
+    accessPolicy: 'open',
+    imageUrl: 'https://placehold.co/600x400?text=PSS-10',
     questions: [
       'In the last month, how often have you felt that you were unable to control the important things in your life?',
       'In the last month, how often have you felt confident about your ability to handle personal problems?',
@@ -185,13 +202,15 @@ export async function seedQuestionnaires() {
     ],
   })
 
-  // --- AUDIT-C (Alcohol use) 0–12
+  // --- AUDIT-C (Alcohol use) 0–12 → ENROLLED (library but controlled)
   await upsertQuestionnaire({
     programId: depression._id as any,
     title: 'AUDIT-C',
     description: 'Alcohol Use Disorders Identification Test (Consumption)',
     disclaimer:
       'This screening tool provides an indicator of alcohol use risk. For medical advice, consult a clinician.',
+    accessPolicy: 'enrolled',
+    imageUrl: 'https://placehold.co/600x400?text=AUDIT-C',
     questions: [
       {
         text: 'How often do you have a drink containing alcohol?',
@@ -252,13 +271,15 @@ export async function seedQuestionnaires() {
     ],
   })
 
-  // --- ISI (Insomnia) 0–28
+  // --- ISI (Insomnia) 0–28 → ENROLLED (self-serve after enrolment)
   await upsertQuestionnaire({
     programId: depression._id as any,
     title: 'ISI',
     description: 'Insomnia Severity Index',
     disclaimer:
       'This tool estimates insomnia severity. It does not replace clinical evaluation. Seek help if symptoms persist.',
+    accessPolicy: 'enrolled',
+    imageUrl: 'https://placehold.co/600x400?text=ISI',
     questions: [
       'Difficulty falling asleep (initial insomnia)',
       'Difficulty staying asleep (middle insomnia)',
