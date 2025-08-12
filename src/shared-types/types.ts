@@ -252,10 +252,13 @@ export type ModuleAssignment = {
 export type ProgramResponse = { program: ProgramWithModules }
 export type ProgramsResponse = { programs: Program[] }
 
-export type ModulesResponse = {
+export type ModulesPlainResponse = { success: boolean; modules: Module[] }
+export type ModulesWithMetaResponse = {
   success: boolean
-  modules: Module[] | AvailableModulesItem[]
+  items: AvailableModulesItem[]
 }
+export type ModulesResponse = ModulesPlainResponse | ModulesWithMetaResponse
+
 export type ModuleResponse = { success: boolean; module: Module }
 
 export type ModuleDetailResponse = {
