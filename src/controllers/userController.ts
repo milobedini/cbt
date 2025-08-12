@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import User, { UserRole } from '../models/userModel'
+import ModuleAttempt from '../models/moduleAttemptModel'
 import { errorHandler } from '../utils/errorHandler'
 import { Types } from 'mongoose'
 
@@ -225,10 +226,49 @@ const adminVerifyTherapist = async (
   }
 }
 
+const adminStats = async (req: Request, res: Response): Promise<void> => {
+  // Return number of users, of which therapists and patients.
+  // Return unverified therapists in list
+  // Return completed attempts in last 7 days
+  try {
+    const userId = req.user?._id
+    const user = await User.findById(userId)
+    if (!user || !user.roles.includes(UserRole.ADMIN)) {
+      res.status(403).json({ message: 'Access denied' })
+      return
+    }
+
+    const totalUsers = await User.countDocuments()
+    const totalTherapists = await User.countDocuments({
+      roles: UserRole.THERAPIST,
+    })
+    const totalPatients = await User.countDocuments({ roles: UserRole.PATIENT })
+    const unverifiedTherapists = await User.find({
+      roles: UserRole.THERAPIST,
+      isVerifiedTherapist: false,
+    })
+    const completedAttempts = await ModuleAttempt.countDocuments({
+      status: 'submitted',
+      completedAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+    })
+
+    res.status(200).json({
+      totalUsers,
+      totalTherapists,
+      totalPatients,
+      unverifiedTherapists,
+      completedAttempts,
+    })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
 export {
   getUser,
   getAllPatients,
   getClients,
   addRemoveTherapist,
   adminVerifyTherapist,
+  adminStats,
 }

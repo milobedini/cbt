@@ -1,5 +1,6 @@
 import {
   addRemoveTherapist,
+  adminStats,
   adminVerifyTherapist,
   getAllPatients,
   getClients,
@@ -19,6 +20,7 @@ const router = express.Router()
 router.get('/', getUser)
 router.get('/patients', getAllPatients)
 router.get('/clients', getClients)
+router.get('/admin/stats', adminStats)
 router.post('/assign', addRemoveTherapist)
 router.post('/verify', adminVerifyTherapist)
 

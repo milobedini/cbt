@@ -454,3 +454,11 @@ export type ModulesQuery = {
   program?: string
   withMeta?: boolean | string // server treats presence/truthy values as true
 }
+
+export type AdminStats = {
+  totalUsers: number
+  totalTherapists: number
+  totalPatients: number
+  unverifiedTherapists: AuthUser[]
+  completedAttempts: number
+}
