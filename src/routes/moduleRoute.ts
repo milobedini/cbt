@@ -13,10 +13,10 @@ import authenticateUser from '../middleware/authMiddleware'
 
 const router = express.Router()
 
-router.get('/', getModules)
+router.get('/', authenticateUser, getModules)
 // ⚠️ Order matters: detail before :id
-router.get('/detail/:id', getDetailedModuleById)
-router.get('/:id', getModuleById)
+router.get('/detail/:id', authenticateUser, getDetailedModuleById)
+router.get('/:id', authenticateUser, getModuleById)
 
 router.post('/', authenticateUser, createModule)
 router.post('/assign', authenticateUser, enrollUnenrollUserInModule)

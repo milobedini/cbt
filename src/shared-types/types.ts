@@ -252,7 +252,10 @@ export type ModuleAssignment = {
 export type ProgramResponse = { program: ProgramWithModules }
 export type ProgramsResponse = { programs: Program[] }
 
-export type ModulesResponse = { success: boolean; modules: Module[] }
+export type ModulesResponse = {
+  success: boolean
+  modules: Module[] | AvailableModulesItem[]
+}
 export type ModuleResponse = { success: boolean; module: Module }
 
 export type ModuleDetailResponse = {
@@ -390,9 +393,15 @@ export type AvailableSourceTag = 'open' | 'enrolled' | 'assigned'
 export type AvailableModulesItem = {
   module: Module
   meta: {
-    canStart: boolean
-    canStartReason: 'ok' | 'not_enrolled' | 'requires_assignment'
-    source: AvailableSourceTag[] // why this module is visible
+    // unauthenticated, non-open can be undefined
+    canStart: boolean | undefined
+    // unauthenticated can appear (esp. when user not logged in)
+    canStartReason:
+      | 'ok'
+      | 'not_enrolled'
+      | 'requires_assignment'
+      | 'unauthenticated'
+    source: AvailableSourceTag[]
     activeAssignmentId?: string
     assignmentStatus?: 'assigned' | 'in_progress'
     dueAt?: string
@@ -436,4 +445,9 @@ export type MyAssignmentView = {
 export type MyAssignmentsResponse = {
   success: boolean
   assignments: MyAssignmentView[]
+}
+
+export type ModulesQuery = {
+  program?: string
+  withMeta?: boolean | string // server treats presence/truthy values as true
 }
