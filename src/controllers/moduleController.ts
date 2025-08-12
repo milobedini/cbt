@@ -10,7 +10,6 @@ import mongoose, { Types } from 'mongoose'
 const getModules = async (req: Request, res: Response) => {
   try {
     const userId = req.user?._id as Types.ObjectId | undefined
-    console.log(userId)
     const { program, withMeta } = req.query as {
       program?: string
       withMeta?: string
@@ -337,8 +336,6 @@ const enrollUnenrollUserInModule = async (req: Request, res: Response) => {
       String(patient.therapist) !== String(user._id) &&
       !user.roles.includes(UserRole.ADMIN)
     ) {
-      console.log(patient.therapist, user._id)
-      console.log(!patient.therapist !== user._id)
       res.status(403).json({
         success: false,
         message:
