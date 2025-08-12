@@ -449,7 +449,7 @@ const getAvailableModules = async (req: Request, res: Response) => {
       }
     })
 
-    res.status(200).json({ success: true, items })
+    res.status(200).json({ success: true, modules: items })
   } catch (error) {
     errorHandler(res, error)
   }

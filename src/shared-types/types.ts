@@ -255,7 +255,7 @@ export type ProgramsResponse = { programs: Program[] }
 export type ModulesPlainResponse = { success: boolean; modules: Module[] }
 export type ModulesWithMetaResponse = {
   success: boolean
-  items: AvailableModulesItem[]
+  modules: AvailableModulesItem[]
 }
 export type ModulesResponse = ModulesPlainResponse | ModulesWithMetaResponse
 
@@ -413,7 +413,7 @@ export type AvailableModulesItem = {
 
 export type AvailableModulesResponse = {
   success: boolean
-  items: AvailableModulesItem[]
+  modules: AvailableModulesItem[]
 }
 
 export type AssignmentLatestAttemptPreview = {
