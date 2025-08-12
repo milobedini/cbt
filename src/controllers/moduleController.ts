@@ -22,10 +22,10 @@ const getModules = async (req: Request, res: Response) => {
       match.program = new Types.ObjectId(program)
     }
 
-    // 2) Fetch modules (no enrolled array to keep payload light)
+    // 2) Fetch modules
     const modules = await Module.find(match)
       .select(
-        '_id title description program type disclaimer imageUrl accessPolicy createdAt updatedAt'
+        '_id title description program type disclaimer imageUrl accessPolicy createdAt updatedAt enrolled'
       )
       .populate('program', '_id title description')
       .sort({ createdAt: -1 })
@@ -91,7 +91,7 @@ const getModules = async (req: Request, res: Response) => {
     const enrolledSet = new Set(enrolledRows.map((r) => String(r._id)))
 
     // 4) Decorate each module with meta
-    const items = modules.map((m: any) => {
+    const items = modules.map((m) => {
       const mId = String(m._id)
       const a = byModule.get(mId)
       const isEnrolled = enrolledSet.has(mId)
