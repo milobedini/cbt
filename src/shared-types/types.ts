@@ -433,7 +433,10 @@ export type ProgramPreviewForAssignment = Pick<Program, '_id' | 'title'>
 export type MyAssignmentView = {
   _id: string
   user: string
-  therapist: string
+  therapist: {
+    _id: string
+    name: string
+  }
   status: AssignmentStatus
   dueAt?: string
   recurrence?: AssignmentRecurrence

@@ -141,6 +141,7 @@ export const getMyAssignments = async (req: Request, res: Response) => {
       .populate('module', '_id title type accessPolicy')
       .populate('program', '_id title description')
       .populate('latestAttempt', '_id completedAt totalScore scoreBandLabel')
+      .populate('therapist', 'name')
       .lean()
 
     res.status(200).json({ success: true, assignments: items })
