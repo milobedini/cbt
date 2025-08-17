@@ -432,7 +432,11 @@ export type ProgramPreviewForAssignment = Pick<Program, '_id' | 'title'>
 
 export type MyAssignmentView = {
   _id: string
-  user: string
+  user: {
+    _id: string
+    name: string
+    username: string
+  }
   therapist: {
     _id: string
     name: string
