@@ -318,10 +318,17 @@ export type TherapistUserPreview = Pick<
 export type TherapistModulePreview = Pick<Module, '_id' | 'title'>
 
 export type TherapistLatestRow = {
+  _id: string
   user: TherapistUserPreview
   module: TherapistModulePreview
-  // lastAttempt includes band (ScoreBandSummary) via $lookup
-  lastAttempt: AttemptListItem & { band?: ScoreBandSummary }
+
+  // fields from the latest attempt (flattened)
+  iteration?: number
+  completedAt?: string
+  totalScore?: number
+  scoreBandLabel?: string
+  weekStart?: string
+  band?: ScoreBandSummary
 }
 
 export type TherapistLatestResponse = {
