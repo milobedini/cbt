@@ -5,6 +5,8 @@ type AttemptStatus = 'started' | 'submitted' | 'abandoned'
 interface IAnswer {
   question: Types.ObjectId
   chosenScore: number
+  chosenIndex?: number // NEW
+  chosenText?: string // NEW
 }
 
 interface IModuleAttempt extends Document {
@@ -96,6 +98,8 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
           required: true,
         },
         chosenScore: { type: Number, required: true },
+        chosenIndex: { type: Number }, // NEW
+        chosenText: { type: String }, // NEW
       },
     ],
     totalScore: Number,

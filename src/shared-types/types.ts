@@ -101,13 +101,18 @@ export type ProgramWithModules = ProgramBase & {
   modules: Module[]
 }
 
+export type ProgramRef =
+  | string
+  | Pick<Program, '_id' | 'title' | 'description'>
+  | Program
+
 export type ModuleType = 'questionnaire' | 'psychoeducation' | 'exercise'
 
 export type Module = {
   _id: string
   title: string
   description: string
-  program: Program // populated in detail route
+  program: ProgramRef // populated in detail route
   type: ModuleType
   disclaimer?: string
   imageUrl?: string
@@ -156,6 +161,8 @@ export type AttemptStatus = 'started' | 'submitted' | 'abandoned'
 export type AttemptAnswer = {
   question: string // question _id
   chosenScore: number
+  chosenIndex?: number // NEW
+  chosenText?: string // NEW
 }
 
 export type ModuleSnapshotQuestion = {
@@ -475,4 +482,31 @@ export type AdminStats = {
   totalPatients: number
   unverifiedTherapists: AuthUser[]
   completedAttempts: number
+}
+
+export type AttemptDetailItem = {
+  order: number
+  questionId: string
+  questionText: string
+  choices: Choice[] // [{ text, score }]
+  chosenScore?: number | null
+  chosenIndex?: number | null
+  chosenText?: string | null
+}
+
+export type AttemptDetail = {
+  items: AttemptDetailItem[]
+  answeredCount: number
+  totalQuestions: number
+  percentComplete: number
+}
+
+export type AttemptDetailResponse = {
+  success: boolean
+  attempt: ModuleAttempt & {
+    band?: ScoreBandSummary
+    detail: AttemptDetail // <-- add this
+    patient?: Pick<AuthUser, '_id' | 'name' | 'username' | 'email'>
+    module?: Pick<Module, '_id' | 'title' | 'type'>
+  }
 }

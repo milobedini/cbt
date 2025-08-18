@@ -95,6 +95,124 @@ async function scoreToBand(moduleId: Types.ObjectId, totalScore: number) {
   return band?.label || null
 }
 
+function decorateAttemptItems(attempt: any) {
+  const snapQs = attempt?.moduleSnapshot?.questions || []
+  const ansMap = new Map<string, any>(
+    (attempt.answers || []).map((a: any) => [String(a.question), a])
+  )
+
+  const items = snapQs.map((q: any, idx: number) => {
+    const a = ansMap.get(String(q._id))
+
+    // derive when missing
+    let chosenIndex = a?.chosenIndex
+    let chosenText = a?.chosenText
+    if ((chosenIndex == null || chosenText == null) && a?.chosenScore != null) {
+      const idxByScore = (q.choices || []).findIndex(
+        (c: any) => c.score === a.chosenScore
+      )
+      if (idxByScore >= 0) {
+        if (chosenIndex == null) chosenIndex = idxByScore
+        if (chosenText == null) chosenText = q.choices[idxByScore]?.text
+      }
+    }
+
+    return {
+      order: idx + 1,
+      questionId: String(q._id),
+      questionText: q.text,
+      choices: q.choices, // [{ text, score }]
+      chosenScore: a?.chosenScore ?? null,
+      chosenIndex: chosenIndex ?? null,
+      chosenText: chosenText ?? null,
+    }
+  })
+
+  const answeredCount = items.filter((i: any) => i.chosenScore != null).length
+  const totalQuestions = items.length
+  const percentComplete = totalQuestions
+    ? Math.round((answeredCount / totalQuestions) * 100)
+    : 0
+
+  return { items, answeredCount, totalQuestions, percentComplete }
+}
+
+function enrichAnswersWithChoiceMetaFromSnapshot(attempt: any) {
+  if (!attempt?.moduleSnapshot?.questions || !Array.isArray(attempt.answers))
+    return
+
+  const qMap = new Map<string, { choices: { text: string; score: number }[] }>(
+    attempt.moduleSnapshot.questions.map((q: any) => [
+      String(q._id),
+      { choices: q.choices || [] },
+    ])
+  )
+
+  attempt.answers = attempt.answers.map((a: any) => {
+    const qInfo = qMap.get(String(a.question))
+    if (!qInfo) return a
+
+    let chosenIndex: number | undefined = a.chosenIndex
+    if (chosenIndex == null) {
+      chosenIndex = qInfo.choices.findIndex((c) => c.score === a.chosenScore)
+      if (chosenIndex < 0) chosenIndex = undefined
+    }
+
+    const chosenText =
+      chosenIndex != null &&
+      chosenIndex >= 0 &&
+      chosenIndex < qInfo.choices.length
+        ? qInfo.choices[chosenIndex].text
+        : a.chosenText // keep any existing
+
+    return {
+      ...a,
+      ...(chosenIndex != null ? { chosenIndex } : {}),
+      ...(chosenText ? { chosenText } : {}),
+    }
+  })
+}
+
+// Rare fallback if there’s no snapshot (shouldn’t happen with your start flow)
+async function enrichAnswersWithChoiceMetaFromDB(attempt: any) {
+  if (!Array.isArray(attempt.answers)) return
+
+  const qIds = attempt.answers.map(
+    (a: any) => new mongoose.Types.ObjectId(a.question)
+  )
+  const qs = await Question.find({ _id: { $in: qIds }, module: attempt.module })
+    .select('_id choices')
+    .lean()
+
+  const qMap = new Map<string, { choices: { text: string; score: number }[] }>(
+    qs.map((q) => [String(q._id), { choices: q.choices || [] }])
+  )
+
+  attempt.answers = attempt.answers.map((a: any) => {
+    const qInfo = qMap.get(String(a.question))
+    if (!qInfo) return a
+
+    let chosenIndex: number | undefined = a.chosenIndex
+    if (chosenIndex == null) {
+      chosenIndex = qInfo.choices.findIndex((c) => c.score === a.chosenScore)
+      if (chosenIndex < 0) chosenIndex = undefined
+    }
+
+    const chosenText =
+      chosenIndex != null &&
+      chosenIndex >= 0 &&
+      chosenIndex < qInfo.choices.length
+        ? qInfo.choices[chosenIndex].text
+        : a.chosenText
+
+    return {
+      ...a,
+      ...(chosenIndex != null ? { chosenIndex } : {}),
+      ...(chosenText ? { chosenText } : {}),
+    }
+  })
+}
+
 // ---- Controllers ----
 
 // POST /modules/:moduleId/attempts
@@ -243,10 +361,57 @@ export const saveProgress = async (req: Request, res: Response) => {
         })
         return
       }
-      attempt.answers = answers.map((a) => ({
-        question: a.question,
-        chosenScore: a.chosenScore,
-      })) as any
+      if (Array.isArray(answers)) {
+        // Load minimal data for the answered questions in one batch
+        const qs = await Question.find({
+          _id: { $in: qIds },
+          module: attempt.module,
+        })
+          .select('_id choices') // choices: [{ text, score }]
+          .lean()
+
+        const qMap = new Map<
+          string,
+          { choices: { text: string; score: number }[] }
+        >(qs.map((q) => [String(q._id), { choices: q.choices || [] }]))
+
+        attempt.answers = answers.map((a) => {
+          const qInfo = qMap.get(String(a.question))
+
+          // If you later send chosenIndex from the client, prefer it:
+          let chosenIndex: number | undefined = (a as any).chosenIndex
+
+          if (qInfo) {
+            const { choices } = qInfo
+
+            // If index not provided (current flow), infer by matching score
+            if (chosenIndex == null) {
+              chosenIndex = choices.findIndex((c) => c.score === a.chosenScore)
+              if (chosenIndex < 0) chosenIndex = undefined
+            }
+
+            const chosenText =
+              chosenIndex != null &&
+              chosenIndex >= 0 &&
+              chosenIndex < choices.length
+                ? choices[chosenIndex].text
+                : undefined
+
+            return {
+              question: a.question,
+              chosenScore: a.chosenScore,
+              ...(chosenIndex != null ? { chosenIndex } : {}),
+              ...(chosenText ? { chosenText } : {}),
+            }
+          }
+
+          // Fallback if somehow question wasn’t found (shouldn’t happen after your validation)
+          return {
+            question: a.question,
+            chosenScore: a.chosenScore,
+          }
+        }) as any
+      }
     }
     if (typeof userNote === 'string') attempt.userNote = userNote
 
@@ -297,6 +462,14 @@ export const submitAttempt = async (req: Request, res: Response) => {
           message: 'Please answer all questions before submitting',
         })
         return
+      }
+    }
+
+    if (attempt.answers?.length) {
+      if (attempt.moduleSnapshot?.questions?.length) {
+        enrichAnswersWithChoiceMetaFromSnapshot(attempt)
+      } else {
+        await enrichAnswersWithChoiceMetaFromDB(attempt)
       }
     }
 
@@ -583,6 +756,135 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
       .lean()
 
     res.status(200).json({ success: true, attempts })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+export const getMyAttemptDetail = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?._id as Types.ObjectId
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' })
+      return
+    }
+
+    const { attemptId } = req.params
+
+    const attempt = await ModuleAttempt.findById(attemptId).lean()
+    if (!attempt) {
+      res.status(404).json({ success: false, message: 'Attempt not found' })
+
+      return
+    }
+
+    if (String(attempt.user) !== String(userId)) {
+      res.status(403).json({ success: false, message: 'Forbidden' })
+      return
+    }
+
+    // Optionally join band for questionnaires when missing (self-view wants full context)
+    let band: any = undefined
+    if (attempt.moduleType === 'questionnaire' && attempt.totalScore != null) {
+      band = await ScoreBand.findOne({
+        module: attempt.module,
+        min: { $lte: attempt.totalScore },
+        max: { $gte: attempt.totalScore },
+      })
+        .select('_id label interpretation min max')
+        .lean()
+    }
+
+    const detail = decorateAttemptItems(attempt)
+
+    res.status(200).json({
+      success: true,
+      attempt: {
+        ...attempt,
+        band,
+        detail,
+      },
+    })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+// GET /therapist/attempts/:attemptId
+export const getAttemptDetailForTherapist = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const therapistId = req.user?._id as Types.ObjectId
+    const me = await User.findById(
+      therapistId,
+      'roles isVerifiedTherapist'
+    ).lean()
+
+    if (
+      !me ||
+      (!me.roles?.includes(UserRole.ADMIN) &&
+        !(me.roles?.includes(UserRole.THERAPIST) && me.isVerifiedTherapist))
+    ) {
+      res.status(403).json({ success: false, message: 'Access denied' })
+      return
+    }
+
+    const { attemptId } = req.params
+    const attempt = await ModuleAttempt.findById(attemptId).lean()
+    if (!attempt) {
+      res.status(404).json({ success: false, message: 'Attempt not found' })
+      return
+    }
+
+    const isOwnerTherapist =
+      String(attempt.therapist || '') === String(therapistId)
+    const isAdmin = me.roles?.includes(UserRole.ADMIN)
+    if (!isOwnerTherapist && !isAdmin) {
+      res.status(403).json({ success: false, message: 'Forbidden' })
+      return
+    }
+
+    // Join band if applicable
+    let band: any = undefined
+    if (attempt.moduleType === 'questionnaire' && attempt.totalScore != null) {
+      band = await ScoreBand.findOne({
+        module: attempt.module,
+        min: { $lte: attempt.totalScore },
+        max: { $gte: attempt.totalScore },
+      })
+        .select('_id label interpretation min max')
+        .lean()
+    }
+
+    // Optional: join patient + module titles for header context
+    const [patient, moduleDoc] = await Promise.all([
+      User.findById(attempt.user).select('_id name username email').lean(),
+      Module.findById(attempt.module).select('_id title type').lean(),
+    ])
+
+    const detail = decorateAttemptItems(attempt)
+
+    res.status(200).json({
+      success: true,
+      attempt: {
+        ...attempt,
+        band,
+        detail,
+        patient: patient
+          ? {
+              _id: patient._id,
+              name: patient.name,
+              username: patient.username,
+              email: patient.email,
+            }
+          : undefined,
+        module: moduleDoc
+          ? { _id: moduleDoc._id, title: moduleDoc.title, type: moduleDoc.type }
+          : undefined,
+      },
+    })
   } catch (error) {
     errorHandler(res, error)
   }
