@@ -101,10 +101,7 @@ export type ProgramWithModules = ProgramBase & {
   modules: Module[]
 }
 
-export type ProgramRef =
-  | string
-  | Pick<Program, '_id' | 'title' | 'description'>
-  | Program
+export type ProgramRef = Pick<Program, '_id' | 'title' | 'description'>
 
 export type ModuleType = 'questionnaire' | 'psychoeducation' | 'exercise'
 
