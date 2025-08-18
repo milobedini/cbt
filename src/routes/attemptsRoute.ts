@@ -9,7 +9,7 @@ import {
 const router = express.Router()
 
 router.get('/:attemptId', getMyAttemptDetail)
-router.get('/:attemptId/therapist', getAttemptDetailForTherapist)
+router.get('therapist/:attemptId', getAttemptDetailForTherapist)
 
 // PATCH /api/attempts/:attemptId
 router.patch('/:attemptId', saveProgress)
