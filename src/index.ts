@@ -52,7 +52,7 @@ app.use(
 )
 app.use('/api', authRouter)
 app.use('/api/user', authenticateUser, userRouter)
-app.use('/api/modules', moduleRouter)
+app.use('/api/modules', authenticateUser, moduleRouter)
 app.use('/api/programs', programRouter)
 app.use('/api/attempts', authenticateUser, attemptRouter) // save/submit by attemptId
 app.use('/api/assignments', authenticateUser, assignmentRouter)
