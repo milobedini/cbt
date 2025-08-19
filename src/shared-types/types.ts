@@ -498,12 +498,14 @@ export type AttemptDetail = {
   percentComplete: number
 }
 
+export type AttemptDetailResponseItem = ModuleAttempt & {
+  band?: ScoreBandSummary
+  detail: AttemptDetail // <-- add this
+  patient?: Pick<AuthUser, '_id' | 'name' | 'username' | 'email'>
+  module?: Pick<Module, '_id' | 'title' | 'type'>
+}
+
 export type AttemptDetailResponse = {
   success: boolean
-  attempt: ModuleAttempt & {
-    band?: ScoreBandSummary
-    detail: AttemptDetail // <-- add this
-    patient?: Pick<AuthUser, '_id' | 'name' | 'username' | 'email'>
-    module?: Pick<Module, '_id' | 'title' | 'type'>
-  }
+  attempt: AttemptDetailResponseItem
 }
