@@ -5,6 +5,7 @@ import {
   getAllPatients,
   getClients,
   getUser,
+  getUsers,
 } from '../controllers/userController'
 import express from 'express'
 import {
@@ -18,6 +19,7 @@ import { getMyAssignments } from '../controllers/assignmentsController'
 const router = express.Router()
 
 router.get('/', getUser)
+router.get('/users', getUsers)
 router.get('/patients', getAllPatients)
 router.get('/clients', getClients)
 router.get('/admin/stats', adminStats)

@@ -517,3 +517,83 @@ export type AttemptDetailResponse = {
   success: boolean
   attempt: AttemptDetailResponseItem
 }
+
+export type MongoId = string
+
+export type TherapistPreview = Pick<User, '_id' | 'username' | 'email' | 'name'>
+
+export type UsersSort = `${string}:${'asc' | 'desc'}` | string
+// Server supports multi-field via comma: "lastLogin:desc,name:asc"
+export type UsersSortMulti =
+  | UsersSort
+  | `${UsersSort},${UsersSort}`
+  | `${UsersSort},${UsersSort},${string}`
+
+export type GetUsersQuery = {
+  page?: number
+  limit?: number
+  q?: string
+
+  // Filters (server accepts csv strings or arrays; booleans can be "true"/"false")
+  roles?: UserRole[] | string
+  ids?: string[] | string
+  isVerified?: boolean | string
+  isVerifiedTherapist?: boolean | string
+  hasTherapist?: boolean | string
+  therapistId?: string
+
+  // Date ranges (ISO strings)
+  createdFrom?: string
+  createdTo?: string
+  lastLoginFrom?: string
+  lastLoginTo?: string
+
+  // Sorting & field selection
+  sort?: UsersSortMulti
+  select?: string[] | string
+}
+
+export type UsersListItem = {
+  _id: MongoId
+  username: string
+  email: string
+  name?: string
+  roles: UserRole[]
+
+  // Verification flags
+  isVerified?: boolean
+  isVerifiedTherapist?: boolean
+
+  // Relations
+  therapist?: MongoId | null
+  // Present only if requested via `select` (controller can project this)
+  therapistInfo?: TherapistPreview | null
+  // Returned as ids by default (you can change server proj to a count if preferred)
+  patients?: MongoId[]
+
+  // Timestamps
+  createdAt: string
+  updatedAt: string
+  lastLogin?: string
+}
+
+export type FacetCount<T = string | boolean | null> = {
+  _id: T
+  count: number
+}
+
+export type UsersFacets = {
+  roles: FacetCount<UserRole>[]
+  isVerified: FacetCount<boolean>[]
+  isVerifiedTherapist: FacetCount<boolean>[]
+  hasTherapist: FacetCount<boolean>[]
+}
+
+export type GetUsersResponse = {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  items: UsersListItem[]
+  facets: UsersFacets
+}

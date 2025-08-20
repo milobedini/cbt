@@ -113,6 +113,17 @@ const userSchema = new mongoose.Schema<IUser>(
   }
 )
 
+userSchema.index({ roles: 1 })
+userSchema.index({ isVerified: 1 })
+userSchema.index({ isVerifiedTherapist: 1 })
+userSchema.index({ therapist: 1 })
+userSchema.index({ createdAt: -1 })
+userSchema.index({ lastLogin: -1 })
+
+// text-ish search via case-insensitive regex still benefits from these:
+userSchema.index({ username: 1 })
+userSchema.index({ name: 1 })
+
 const User = mongoose.model<IUser>('User', userSchema)
 
 export default User
