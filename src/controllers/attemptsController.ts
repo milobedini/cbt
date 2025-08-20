@@ -557,9 +557,10 @@ export const getMyAttempts = async (req: Request, res: Response) => {
         .sort({ lastInteractionAt: -1 })
         .limit(lim)
         .select(
-          '_id module program moduleType startedAt lastInteractionAt iteration userNote dueAt'
+          '_id module program moduleType startedAt lastInteractionAt iteration userNote dueAt status'
         )
         .lean()
+        .populate('module', 'title')
 
       res.status(200).json({ success: true, attempts: rows, nextCursor: null })
       return

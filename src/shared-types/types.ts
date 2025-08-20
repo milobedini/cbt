@@ -179,7 +179,10 @@ export type ModuleAttempt = {
   user: string
   therapist?: string
   program: string
-  module: string
+  module: {
+    id: string
+    title: string
+  }
   moduleType: ModuleType
 
   status: AttemptStatus
@@ -219,6 +222,7 @@ export type AttemptListItem = Pick<
   | 'weekStart'
   | 'completedAt'
   | 'iteration'
+  | 'status'
 >
 
 // ==================================
