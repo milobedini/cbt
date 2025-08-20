@@ -598,22 +598,35 @@ export const getMyAttempts = async (req: Request, res: Response) => {
           as: 'band',
         },
       },
+      // 👇 Add this block to fetch module details
+      {
+        $lookup: {
+          from: 'modules', // collection name, check your schema
+          localField: 'module',
+          foreignField: '_id',
+          as: 'module',
+        },
+      },
+      { $unwind: '$module' }, // flatten from array → object
       { $addFields: { band: { $arrayElemAt: ['$band', 0] } } },
+      { $addFields: { lastInteractionAt: '$completedAt' } },
       {
         $project: {
           _id: 1,
-          module: 1,
+          module: { _id: 1, title: 1 }, // keep only what you want
           program: 1,
           moduleType: 1,
           totalScore: 1,
           scoreBandLabel: 1,
           completedAt: 1,
+          lastInteraction: 1,
           weekStart: 1,
           iteration: 1,
           band: 1,
+          status: 1, // ✅ include status explicitly
         },
       },
-    ] as any[]
+    ]
 
     const rows = await (ModuleAttempt as any).aggregate(pipeline)
     // simple time cursor (ISO). If you want 2-field cursor, we can upgrade later.

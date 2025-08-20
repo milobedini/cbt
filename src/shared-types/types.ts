@@ -180,7 +180,7 @@ export type ModuleAttempt = {
   therapist?: string
   program: string
   module: {
-    id: string
+    _id: string
     title: string
   }
   moduleType: ModuleType
@@ -216,13 +216,17 @@ export type AttemptListItem = Pick<
   | 'module'
   | 'program'
   | 'moduleType'
+  | 'iteration'
+  | 'status'
   | 'totalScore'
   | 'scoreBandLabel'
   | 'band'
   | 'weekStart'
   | 'completedAt'
-  | 'iteration'
-  | 'status'
+  | 'startedAt'
+  | 'lastInteractionAt'
+  | 'dueAt'
+  | 'userNote'
 >
 
 // ==================================
