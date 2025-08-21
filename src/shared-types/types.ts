@@ -115,8 +115,7 @@ export type Module = {
   imageUrl?: string
   createdAt: string
   updatedAt: string
-  enrolled?: string[] // user ids (if you keep this)
-  accessPolicy: 'open' | 'enrolled' | 'assigned'
+  accessPolicy: 'open' | 'assigned'
 }
 
 // ==================================
@@ -280,11 +279,7 @@ export type ModuleDetailResponse = {
   scoreBands: ScoreBand[]
   meta?: {
     canStart?: boolean
-    canStartReason?:
-      | 'ok'
-      | 'not_enrolled'
-      | 'requires_assignment'
-      | 'unauthenticated'
+    canStartReason?: 'ok' | 'requires_assignment' | 'unauthenticated'
     activeAssignmentId?: string
   }
 }
@@ -389,7 +384,7 @@ export type CreateModuleInput = {
   program: string
   disclaimer?: string
   imageUrl?: string
-  accessPolicy?: 'open' | 'enrolled' | 'assigned'
+  accessPolicy?: 'open' | 'assigned'
 }
 
 export type CreateQuestionInput = {
@@ -407,10 +402,7 @@ export type CreateScoreBandInput = {
   interpretation: string
 }
 
-export type EnrolInput = { patientId: string; moduleId: string }
-export type EnrolResponse = { success: boolean; message: string }
-
-export type AvailableSourceTag = 'open' | 'enrolled' | 'assigned'
+export type AvailableSourceTag = 'open' | 'assigned'
 
 export type AvailableModulesItem = {
   module: Module
@@ -418,11 +410,7 @@ export type AvailableModulesItem = {
     // unauthenticated, non-open can be undefined
     canStart: boolean | undefined
     // unauthenticated can appear (esp. when user not logged in)
-    canStartReason:
-      | 'ok'
-      | 'not_enrolled'
-      | 'requires_assignment'
-      | 'unauthenticated'
+    canStartReason: 'ok' | 'requires_assignment' | 'unauthenticated'
     source: AvailableSourceTag[]
     activeAssignmentId?: string
     assignmentStatus?: 'assigned' | 'in_progress'

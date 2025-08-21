@@ -25,7 +25,7 @@ async function upsertContentModule(opts: {
   title: string
   description: string
   type: 'psychoeducation' | 'exercise'
-  accessPolicy: 'open' | 'enrolled' | 'assigned'
+  accessPolicy: 'open' | 'assigned'
   disclaimer?: string
   imageUrl?: string
 }) {
@@ -61,7 +61,7 @@ async function upsertQuestionnaire(opts: {
   programId: string
   title: string
   description: string
-  accessPolicy: 'open' | 'enrolled' | 'assigned'
+  accessPolicy: 'open' | 'assigned'
   disclaimer: string
   imageUrl?: string
   questions: { text: string; choices: { text: string; score: number }[] }[]
@@ -140,12 +140,12 @@ export async function seedNewPrograms() {
     resilience._id
   )
 
-  // 1) Resilience Snapshot (questionnaire, ENROLLED)
+  // 1) Resilience Snapshot (questionnaire, ASSIGNED)
   await upsertQuestionnaire({
     programId: String(resilience._id),
     title: 'Resilience Snapshot (6-item)',
     description: 'A brief self-check on resilience and bounce-back capacity.',
-    accessPolicy: 'enrolled',
+    accessPolicy: 'assigned',
     disclaimer:
       'This brief self-check is for self-reflection and is not a diagnosis. If you are in crisis or feel unsafe, seek immediate support.',
     imageUrl: 'https://placehold.co/600x400?text=Resilience+Snapshot',

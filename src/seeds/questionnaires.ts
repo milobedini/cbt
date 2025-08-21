@@ -25,7 +25,7 @@ async function upsertQuestionnaire(opts: {
   title: string
   description: string
   disclaimer: string
-  accessPolicy: 'open' | 'enrolled' | 'assigned' // NEW
+  accessPolicy: 'open' | 'assigned'
   imageUrl?: string // optional, for nicer demo
   questions: { text: string; choices: { text: string; score: number }[] }[]
   bands: { min: number; max: number; label: string; interpretation: string }[]
@@ -202,14 +202,14 @@ export async function seedQuestionnaires() {
     ],
   })
 
-  // --- AUDIT-C (Alcohol use) 0–12 → ENROLLED (library but controlled)
+  // --- AUDIT-C (Alcohol use) 0–12 → ASSIGNED
   await upsertQuestionnaire({
     programId: depression._id as any,
     title: 'AUDIT-C',
     description: 'Alcohol Use Disorders Identification Test (Consumption)',
     disclaimer:
       'This screening tool provides an indicator of alcohol use risk. For medical advice, consult a clinician.',
-    accessPolicy: 'enrolled',
+    accessPolicy: 'assigned',
     imageUrl: 'https://placehold.co/600x400?text=AUDIT-C',
     questions: [
       {
@@ -271,14 +271,14 @@ export async function seedQuestionnaires() {
     ],
   })
 
-  // --- ISI (Insomnia) 0–28 → ENROLLED (self-serve after enrolment)
+  // --- ISI (Insomnia) 0–28 → ASSIGNED
   await upsertQuestionnaire({
     programId: depression._id as any,
     title: 'ISI',
     description: 'Insomnia Severity Index',
     disclaimer:
       'This tool estimates insomnia severity. It does not replace clinical evaluation. Seek help if symptoms persist.',
-    accessPolicy: 'enrolled',
+    accessPolicy: 'assigned',
     imageUrl: 'https://placehold.co/600x400?text=ISI',
     questions: [
       'Difficulty falling asleep (initial insomnia)',

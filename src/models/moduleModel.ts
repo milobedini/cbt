@@ -9,8 +9,7 @@ type IModule = Document & {
   updatedAt: Date
   disclaimer?: string
   imageUrl?: string
-  enrolled?: Types.ObjectId[]
-  accessPolicy: 'open' | 'enrolled' | 'assigned'
+  accessPolicy: 'open' | 'assigned'
 }
 
 const moduleSchema = new mongoose.Schema<IModule>(
@@ -25,11 +24,10 @@ const moduleSchema = new mongoose.Schema<IModule>(
     },
     disclaimer: String,
     imageUrl: String,
-    enrolled: [{ type: Schema.Types.ObjectId, ref: 'User' }],
     accessPolicy: {
       type: String,
-      enum: ['open', 'enrolled', 'assigned'],
-      default: 'enrolled',
+      enum: ['open', 'assigned'],
+      default: 'assigned',
     },
   },
   { timestamps: true, collection: 'modules' }

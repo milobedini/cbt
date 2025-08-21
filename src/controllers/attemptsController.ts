@@ -30,13 +30,7 @@ function isTherapist(user: any) {
 function isVerifiedTherapist(user: any) {
   return isTherapist(user) && !!user.isVerifiedTherapist
 }
-// enrollment check based on Module.enrolled array
-async function isEnrolled(userId: Types.ObjectId, moduleId: Types.ObjectId) {
-  const mod = await Module.findOne({ _id: moduleId, enrolled: userId })
-    .select('_id')
-    .lean()
-  return !!mod
-}
+
 // active assignment finder (assigned or in_progress)
 async function findActiveAssignment(
   userId: Types.ObjectId,
@@ -256,18 +250,6 @@ export const startAttempt = async (req: Request, res: Response) => {
         res.status(403).json({
           success: false,
           message: 'An active assignment is required to start this module',
-        })
-        return
-      }
-    }
-
-    // enforce enrollment for self-starts (when no assignment or policy requires it)
-    if (mod.accessPolicy === 'enrolled' && !assignment) {
-      const enrolled = await isEnrolled(userId, mod._id as Types.ObjectId)
-      if (!enrolled) {
-        res.status(403).json({
-          success: false,
-          message: 'You must be enrolled in this module to start it',
         })
         return
       }

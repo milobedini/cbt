@@ -4,7 +4,6 @@ import {
   createModule,
   getModuleById,
   getDetailedModuleById,
-  enrollUnenrollUserInModule,
 } from '../controllers/moduleController'
 import {
   startAttempt, // <-- add
@@ -19,7 +18,6 @@ router.get('/detail/:id', getDetailedModuleById)
 router.get('/:id', getModuleById)
 
 router.post('/', createModule)
-router.post('/assign', enrollUnenrollUserInModule)
 
 // ✅ Start a new attempt for a module (patient)
 router.post('/:moduleId/attempts', startAttempt)

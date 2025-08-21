@@ -15,7 +15,7 @@ export async function seedPhq9() {
   )) as IProgram
   console.log('✅ Program created/updated:', program._id)
 
-  // 2) PHQ-9 module (accessPolicy: enrolled)
+  // 2) PHQ-9 module (accessPolicy: assigned)
   const phq9 = (await Module.findOneAndUpdate(
     { title: 'PHQ-9', program: program._id },
     {
@@ -23,7 +23,7 @@ export async function seedPhq9() {
       description: 'Patient Health Questionnaire-9 (depression severity)',
       program: program._id,
       type: 'questionnaire',
-      accessPolicy: 'enrolled',
+      accessPolicy: 'assigned',
       disclaimer:
         'The PHQ-9 is a screening tool and does **not** replace professional diagnosis. ' +
         'If you have thoughts of self-harm, seek help immediately.',

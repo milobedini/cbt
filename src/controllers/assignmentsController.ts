@@ -28,19 +28,6 @@ export const createAssignment = async (req: Request, res: Response) => {
       return
     }
 
-    if (mod.accessPolicy !== 'assigned') {
-      const isAlreadyEnrolled = await Module.exists({
-        _id: moduleId,
-        enrolled: userId,
-      })
-      if (!isAlreadyEnrolled) {
-        await Module.updateOne(
-          { _id: moduleId },
-          { $addToSet: { enrolled: userId } }
-        )
-      }
-    }
-
     const asg = await ModuleAssignment.create({
       user: userId,
       therapist: therapistId,
