@@ -28,6 +28,31 @@ export const createAssignment = async (req: Request, res: Response) => {
       return
     }
 
+    // Access denied if not your client:
+    const user = await User.findById(userId)
+    if (!user || user?.therapist?.toString() !== therapistId.toString()) {
+      res
+        .status(403)
+        .json({ success: false, message: "You are not this user's therapist" })
+      return
+    }
+
+    // Do not create if the user already has an active assignment for the same module
+    const existingAssignment = await ModuleAssignment.findOne({
+      user: userId,
+      module: mod._id,
+      status: { $in: ['assigned', 'in_progress'] },
+    })
+    if (existingAssignment) {
+      res
+        .status(409)
+        .json({
+          success: false,
+          message: 'User already has an active assignment for this module',
+        })
+      return
+    }
+
     const asg = await ModuleAssignment.create({
       user: userId,
       therapist: therapistId,
