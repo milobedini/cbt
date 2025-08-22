@@ -731,15 +731,17 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
       return
     }
 
-    const { patientId, moduleId } = req.params
+    const { patientId } = req.params
     const {
       limit = '20',
       cursor,
       status,
+      moduleId,
     } = req.query as {
       limit?: string
       cursor?: string
       status?: string // 'submitted' | 'active' | 'started' | 'abandoned' | csv
+      moduleId?: string
     }
 
     const canSee =
@@ -803,6 +805,7 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
         '_id totalScore scoreBandLabel weekStart completedAt startedAt lastInteractionAt iteration moduleType module program dueAt userNote'
       )
       .lean()
+      .populate('module', 'title')
 
     let nextCursor: string | null = null
     if (attempts.length > pageSize) {
