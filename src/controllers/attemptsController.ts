@@ -721,7 +721,7 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
 }
 
 // GET /therapist/patients/:patientId/modules/:moduleId/attempts
-// Therapist: timeline for one patient + module
+// Therapist: timeline for one patient
 export const getPatientModuleTimeline = async (req: Request, res: Response) => {
   try {
     const therapistId = req.user?._id as Types.ObjectId
@@ -732,26 +732,91 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
     }
 
     const { patientId, moduleId } = req.params
+    const {
+      limit = '20',
+      cursor,
+      status,
+    } = req.query as {
+      limit?: string
+      cursor?: string
+      status?: string // 'submitted' | 'active' | 'started' | 'abandoned' | csv
+    }
+
     const canSee =
       isAdmin(me) ||
       (await therapistCanSeePatient(therapistId, new Types.ObjectId(patientId)))
     if (!canSee) {
-      res.status(403).json({ success: false, message: 'Forbidden' })
+      res.status(403).json({
+        success: false,
+        message: "You are not the patient's therapist",
+      })
       return
     }
 
-    const attempts = await ModuleAttempt.find({
-      user: patientId,
-      module: moduleId,
-      status: 'submitted',
-    })
-      .sort({ completedAt: -1 })
+    // ----- Status normalization -----
+    // Default to completed timeline
+    const norm = (status ?? 'submitted').toString().trim().toLowerCase()
+
+    // Allow csv: status=started,abandoned ; and a friendly alias: active -> started
+    const rawStatuses =
+      norm === 'all'
+        ? [] // no filter
+        : norm === 'active'
+        ? ['started']
+        : norm
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+
+    const findQuery: Record<string, any> = { user: patientId }
+    if (moduleId) findQuery.module = moduleId
+
+    if (rawStatuses.length > 0) {
+      findQuery.status =
+        rawStatuses.length === 1 ? rawStatuses[0] : { $in: rawStatuses }
+    } else {
+      // 'all' -> no status filter; otherwise default already applied above
+    }
+
+    // Choose sort & cursor field based on status group
+    const isSubmittedView =
+      rawStatuses.length === 0 // 'all'
+        ? false
+        : rawStatuses.length === 1 && rawStatuses[0] === 'submitted'
+
+    const sortField = isSubmittedView ? 'completedAt' : 'lastInteractionAt'
+
+    // Cursor (ISO date string) works against the chosen sort field
+    if (cursor) {
+      const cursorDate = new Date(cursor)
+      if (!isNaN(cursorDate.getTime())) {
+        findQuery[sortField] = { $lt: cursorDate }
+      }
+    }
+
+    const pageSize = Math.min(Math.max(Number(limit) || 20, 1), 100)
+
+    const attempts = await ModuleAttempt.find(findQuery)
+      .sort({ [sortField]: -1 }) // newest first by chosen field
+      .limit(pageSize + 1) // fetch one extra to detect next page
       .select(
-        '_id totalScore scoreBandLabel weekStart completedAt iteration moduleType'
+        '_id totalScore scoreBandLabel weekStart completedAt startedAt lastInteractionAt iteration moduleType module program dueAt userNote'
       )
       .lean()
 
-    res.status(200).json({ success: true, attempts })
+    let nextCursor: string | null = null
+    if (attempts.length > pageSize) {
+      const last = attempts[pageSize - 1]
+      const ts = last?.[sortField] as Date | string | undefined
+      nextCursor = ts ? new Date(ts).toISOString() : null
+      attempts.length = pageSize
+    }
+
+    res.status(200).json({
+      success: true,
+      attempts,
+      nextCursor,
+    })
   } catch (error) {
     errorHandler(res, error)
   }

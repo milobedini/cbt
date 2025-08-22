@@ -35,9 +35,6 @@ router.get('/assignments', getMyAssignments) // ?status=active|completed|all
 router.get('/therapist/attempts/latest', getTherapistLatest)
 
 // ✅ Therapist: one patient’s timeline for one module
-router.get(
-  '/therapist/patients/:patientId/modules/:moduleId/attempts',
-  getPatientModuleTimeline
-)
+router.get('/therapist/patients/:patientId/timeline', getPatientModuleTimeline)
 
 export default router

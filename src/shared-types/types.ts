@@ -343,11 +343,6 @@ export type TherapistLatestResponse = {
   rows: TherapistLatestRow[]
 }
 
-export type PatientModuleTimelineResponse = {
-  success: boolean
-  attempts: (AttemptListItem & { band?: ScoreBandSummary })[]
-}
-
 // ==================================
 // API: Assignments (optional)
 // ==================================
@@ -584,4 +579,34 @@ export type GetUsersResponse = {
   totalPages: number
   items: UsersListItem[]
   facets: UsersFacets
+}
+
+// ==================================
+// API: Therapist patient timeline (this endpoint)
+// ==================================
+
+export type PatientModuleTimelineQuery = {
+  moduleId?: string
+  limit?: number
+  cursor?: Cursor
+  /**
+   * Status filter:
+   * - 'submitted' (default) = completed timeline (sorted by completedAt)
+   * - 'active' = alias for in-progress (maps to ['started'])
+   * - 'started' | 'abandoned' | csv (e.g. "started,abandoned")
+   * - 'all' = no status filter (sorted by lastInteractionAt)
+   */
+  status?:
+    | 'submitted'
+    | 'active'
+    | AttemptStatus
+    | `${AttemptStatus},${string}`
+    | 'all'
+    | string
+}
+
+export type PatientModuleTimelineResponse = {
+  success: boolean
+  attempts: (AttemptListItem & { band?: ScoreBandSummary })[]
+  nextCursor: string | null
 }
