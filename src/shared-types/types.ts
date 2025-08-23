@@ -610,3 +610,9 @@ export type PatientModuleTimelineResponse = {
   attempts: (AttemptListItem & { band?: ScoreBandSummary })[]
   nextCursor: string | null
 }
+
+export type BasicMutationResponse = {
+  success: boolean
+  message?: string
+  data?: any
+}

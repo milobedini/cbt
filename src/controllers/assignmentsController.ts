@@ -44,12 +44,10 @@ export const createAssignment = async (req: Request, res: Response) => {
       status: { $in: ['assigned', 'in_progress'] },
     })
     if (existingAssignment) {
-      res
-        .status(409)
-        .json({
-          success: false,
-          message: 'User already has an active assignment for this module',
-        })
+      res.status(409).json({
+        success: false,
+        message: 'User already has an active assignment for this module',
+      })
       return
     }
 
@@ -157,6 +155,33 @@ export const getMyAssignments = async (req: Request, res: Response) => {
       .lean()
 
     res.status(200).json({ success: true, assignments: items })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+export const removeAssignment = async (req: Request, res: Response) => {
+  try {
+    const therapistId = req.user?._id as Types.ObjectId
+    const me = await User.findById(therapistId)
+    if (!me || (!isAdmin(me) && !isVerifiedTherapist(me))) {
+      res.status(403).json({ success: false, message: 'Access denied' })
+      return
+    }
+
+    const { assignmentId } = req.params
+
+    const asg = await ModuleAssignment.findOneAndDelete({
+      _id: assignmentId,
+      therapist: therapistId,
+    })
+    if (!asg) {
+      res.status(404).json({ success: false, message: 'Assignment not found' })
+      return
+    }
+    res
+      .status(200)
+      .json({ success: true, message: 'Assignment removed successfully' })
   } catch (error) {
     errorHandler(res, error)
   }

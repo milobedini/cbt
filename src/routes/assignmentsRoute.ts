@@ -2,6 +2,7 @@ import express from 'express'
 import {
   createAssignment,
   listAssignmentsForTherapist,
+  removeAssignment,
   updateAssignmentStatus,
 } from '../controllers/assignmentsController'
 
@@ -15,5 +16,8 @@ router.get('/mine', listAssignmentsForTherapist)
 
 // PATCH /api/assignments/:assignmentId/status
 router.patch('/:assignmentId/status', updateAssignmentStatus)
+
+// DELETE /api/assignments/:assignmentId
+router.delete('/:assignmentId', removeAssignment)
 
 export default router
