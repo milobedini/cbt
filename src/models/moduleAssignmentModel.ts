@@ -7,7 +7,11 @@ interface IModuleAssignment extends Document {
   therapist: Types.ObjectId
   program: Types.ObjectId
   module: Types.ObjectId
-  moduleType: 'questionnaire' | 'psychoeducation' | 'exercise'
+  moduleType:
+    | 'questionnaire'
+    | 'psychoeducation'
+    | 'exercise'
+    | 'activity_diary'
 
   status: AssignmentStatus
   createdAt: Date
@@ -47,7 +51,7 @@ const ModuleAssignmentSchema = new Schema<IModuleAssignment>(
     },
     moduleType: {
       type: String,
-      enum: ['questionnaire', 'psychoeducation', 'exercise'],
+      enum: ['questionnaire', 'psychoeducation', 'exercise', 'activity_diary'],
       required: true,
     },
 

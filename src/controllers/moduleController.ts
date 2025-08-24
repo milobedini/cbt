@@ -3,7 +3,6 @@ import Module from '../models/moduleModel'
 import { errorHandler } from '../utils/errorHandler'
 import Question from '../models/questionModel'
 import ScoreBand from '../models/scoreBandModel'
-import User, { UserRole } from '../models/userModel'
 import ModuleAssignment from '../models/moduleAssignmentModel'
 import mongoose, { Types } from 'mongoose'
 
@@ -142,6 +141,45 @@ const getDetailedModuleById = async (req: Request, res: Response) => {
       return
     }
 
+    if (module.type === 'activity_diary') {
+      let canStart: boolean | undefined
+      let canStartReason:
+        | 'ok'
+        | 'requires_assignment'
+        | 'unauthenticated'
+        | undefined
+      let activeAssignmentId: string | undefined
+
+      if (!req.user?._id) {
+        canStart = undefined
+        canStartReason = 'unauthenticated'
+      } else if (module.accessPolicy === 'open') {
+        canStart = true
+        canStartReason = 'ok'
+      } else {
+        const a = await ModuleAssignment.findOne({
+          user: req.user._id,
+          module: module._id,
+          status: { $in: ['assigned', 'in_progress'] },
+        })
+          .select('_id')
+          .lean()
+
+        canStart = !!a
+        canStartReason = a ? 'ok' : 'requires_assignment'
+        activeAssignmentId = a?._id?.toString()
+      }
+
+      res.status(200).json({
+        success: true,
+        module,
+        questions: [], // questionnaire-only
+        scoreBands: [], // questionnaire-only
+        meta: { canStart, canStartReason, activeAssignmentId },
+      })
+      return
+    }
+
     const questions = await Question.find({ module: module._id }).sort({
       order: 1,
     })
@@ -207,7 +245,12 @@ const createModule = async (req: Request, res: Response) => {
       return
     }
 
-    const allowedTypes = ['questionnaire', 'psychoeducation', 'exercise']
+    const allowedTypes = [
+      'questionnaire',
+      'psychoeducation',
+      'exercise',
+      'activity_diary',
+    ]
     if (!allowedTypes.includes(type)) {
       res.status(400).json({
         success: false,

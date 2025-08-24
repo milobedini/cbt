@@ -207,6 +207,105 @@ async function enrichAnswersWithChoiceMetaFromDB(attempt: any) {
   })
 }
 
+type DiaryEntryInput = {
+  at: string | Date
+  label?: string
+  activity?: string
+  mood?: number // 0..100
+  achievement?: number // 0..10
+  closeness?: number // 0..10
+  enjoyment?: number // 0..10
+}
+
+function clampInt(n: any, min: number, max: number) {
+  if (typeof n !== 'number' || Number.isNaN(n)) return undefined
+  return Math.min(max, Math.max(min, Math.round(n)))
+}
+
+function sanitizeDiaryEntries(list: DiaryEntryInput[] | undefined): any[] {
+  if (!Array.isArray(list)) return []
+  return list
+    .map((e) => {
+      const at = new Date(e.at as any)
+      if (isNaN(at.getTime())) return null
+
+      const label =
+        typeof e.label === 'string' ? e.label.trim().slice(0, 100) : undefined
+
+      // activity can be empty; trim+cap
+      const activity =
+        typeof e.activity === 'string' ? e.activity.trim().slice(0, 1000) : ''
+
+      const mood = clampInt(e.mood, 0, 100)
+      const achievement = clampInt(e.achievement, 0, 10)
+      const closeness = clampInt(e.closeness, 0, 10)
+      const enjoyment = clampInt(e.enjoyment, 0, 10)
+
+      return {
+        at,
+        ...(label ? { label } : {}),
+        activity,
+        ...(mood != null ? { mood } : {}),
+        ...(achievement != null ? { achievement } : {}),
+        ...(closeness != null ? { closeness } : {}),
+        ...(enjoyment != null ? { enjoyment } : {}),
+      }
+    })
+    .filter(Boolean) as any[]
+}
+
+function decorateDiaryDetail(attempt: any) {
+  const entries = Array.isArray(attempt.diaryEntries)
+    ? [...attempt.diaryEntries]
+    : []
+
+  // sort by time ASC
+  entries.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+
+  // group by London calendar day
+  const byDay = new Map<string, any[]>()
+  for (const e of entries) {
+    const dt = DateTime.fromJSDate(new Date(e.at), { zone: LONDON_TZ })
+    // toISODate() can be null; fall back to a deterministic format
+    const key: string = dt.toISODate() ?? dt.toFormat('yyyy-LL-dd')
+    if (!byDay.has(key)) byDay.set(key, [])
+    byDay.get(key)!.push(e)
+  }
+
+  const avg = (arr: number[]) =>
+    arr.length
+      ? Math.round(
+          (arr.reduce((s, n) => s + n, 0) / arr.length + Number.EPSILON) * 10
+        ) / 10
+      : null
+
+  const days = Array.from(byDay.entries()).map(([dateISO, items]) => {
+    const nums = (k: 'mood' | 'achievement' | 'closeness' | 'enjoyment') =>
+      items.map((x: any) => x[k]).filter((x: any) => typeof x === 'number')
+    return {
+      dateISO,
+      entries: items,
+      avgMood: avg(nums('mood')),
+      avgAchievement: avg(nums('achievement')),
+      avgCloseness: avg(nums('closeness')),
+      avgEnjoyment: avg(nums('enjoyment')),
+    }
+  })
+
+  const all = (k: 'mood' | 'achievement' | 'closeness' | 'enjoyment') =>
+    entries.map((x: any) => x[k]).filter((x: any) => typeof x === 'number')
+
+  const totals = {
+    count: entries.length,
+    avgMood: avg(all('mood')),
+    avgAchievement: avg(all('achievement')),
+    avgCloseness: avg(all('closeness')),
+    avgEnjoyment: avg(all('enjoyment')),
+  }
+
+  return { days, totals }
+}
+
 // ---- Controllers ----
 
 // POST /modules/:moduleId/attempts
@@ -308,8 +407,15 @@ export const saveProgress = async (req: Request, res: Response) => {
   try {
     const userId = req.user?._id as Types.ObjectId
     const { attemptId } = req.params
-    const { answers, userNote } = req.body as {
-      answers?: Array<{ question: string; chosenScore: number }>
+    const { answers, userNote, diaryEntries, merge } = req.body as {
+      answers?: Array<{
+        question: string
+        chosenScore: number
+        chosenIndex?: number
+        chosenText?: string
+      }>
+      diaryEntries?: DiaryEntryInput[]
+      merge?: boolean
       userNote?: string
     }
 
@@ -329,27 +435,58 @@ export const saveProgress = async (req: Request, res: Response) => {
       return
     }
 
+    if (attempt.moduleType === 'activity_diary') {
+      if (Array.isArray(diaryEntries)) {
+        const sanitized = sanitizeDiaryEntries(diaryEntries)
+
+        if (
+          merge &&
+          Array.isArray(attempt.diaryEntries) &&
+          attempt.diaryEntries.length
+        ) {
+          // merge by timestamp(ms)+label
+          const key = (e: any) => `${new Date(e.at).getTime()}|${e.label || ''}`
+          const existing = new Map(
+            attempt.diaryEntries.map((e: any) => [key(e), e])
+          )
+          for (const e of sanitized) existing.set(key(e), e)
+          attempt.diaryEntries = Array.from(existing.values()).sort(
+            (a: any, b: any) =>
+              new Date(a.at).getTime() - new Date(b.at).getTime()
+          )
+        } else {
+          attempt.diaryEntries = sanitized
+        }
+      }
+
+      if (typeof userNote === 'string') attempt.userNote = userNote
+      attempt.lastInteractionAt = new Date()
+      await attempt.save()
+      res.status(200).json({ success: true, attempt })
+      return
+    }
+
     if (Array.isArray(answers)) {
       // Optional: validate question ids belong to this module
-      const qIds = answers.map((a) => new mongoose.Types.ObjectId(a.question))
-      const validQCount = await Question.countDocuments({
-        _id: { $in: qIds },
-        module: attempt.module,
-      })
-      if (validQCount !== qIds.length) {
-        res.status(400).json({
-          success: false,
-          message: 'One or more answers reference invalid questions',
-        })
-        return
-      }
       if (Array.isArray(answers)) {
-        // Load minimal data for the answered questions in one batch
+        const qIds = answers.map((a) => new mongoose.Types.ObjectId(a.question))
+        const validQCount = await Question.countDocuments({
+          _id: { $in: qIds },
+          module: attempt.module,
+        })
+        if (validQCount !== qIds.length) {
+          res.status(400).json({
+            success: false,
+            message: 'One or more answers reference invalid questions',
+          })
+          return
+        }
+
         const qs = await Question.find({
           _id: { $in: qIds },
           module: attempt.module,
         })
-          .select('_id choices') // choices: [{ text, score }]
+          .select('_id choices')
           .lean()
 
         const qMap = new Map<
@@ -359,38 +496,29 @@ export const saveProgress = async (req: Request, res: Response) => {
 
         attempt.answers = answers.map((a) => {
           const qInfo = qMap.get(String(a.question))
-
-          // If you later send chosenIndex from the client, prefer it:
-          let chosenIndex: number | undefined = (a as any).chosenIndex
+          let chosenIndex: number | undefined = a.chosenIndex
+          let chosenText: string | undefined = a.chosenText
 
           if (qInfo) {
             const { choices } = qInfo
-
-            // If index not provided (current flow), infer by matching score
             if (chosenIndex == null) {
-              chosenIndex = choices.findIndex((c) => c.score === a.chosenScore)
-              if (chosenIndex < 0) chosenIndex = undefined
+              const idx = choices.findIndex((c) => c.score === a.chosenScore)
+              if (idx >= 0) chosenIndex = idx
             }
-
-            const chosenText =
+            if (
+              chosenText == null &&
               chosenIndex != null &&
               chosenIndex >= 0 &&
               chosenIndex < choices.length
-                ? choices[chosenIndex].text
-                : undefined
-
-            return {
-              question: a.question,
-              chosenScore: a.chosenScore,
-              ...(chosenIndex != null ? { chosenIndex } : {}),
-              ...(chosenText ? { chosenText } : {}),
+            ) {
+              chosenText = choices[chosenIndex].text
             }
           }
-
-          // Fallback if somehow question wasn’t found (shouldn’t happen after your validation)
           return {
             question: a.question,
             chosenScore: a.chosenScore,
+            ...(chosenIndex != null ? { chosenIndex } : {}),
+            ...(chosenText ? { chosenText } : {}),
           }
         }) as any
       }
@@ -428,6 +556,45 @@ export const submitAttempt = async (req: Request, res: Response) => {
       return
     }
 
+    const now = new Date()
+
+    if (attempt.moduleType === 'activity_diary') {
+      // No questionnaire scoring/bands; just finalize + normalize weekStart
+      attempt.weekStart = computeWeekStart(now)
+      attempt.completedAt = now
+      attempt.lastInteractionAt = now
+      attempt.status = 'submitted'
+      attempt.durationSecs = attempt.startedAt
+        ? Math.max(
+            0,
+            Math.floor((now.getTime() - attempt.startedAt.getTime()) / 1000)
+          )
+        : undefined
+
+      // refresh therapist snapshot at submit
+      const me = await User.findById(userId, 'therapist')
+      attempt.therapist = me?.therapist
+      await attempt.save()
+
+      // Assignment sync
+      if (!assignmentId) {
+        const possible = await findActiveAssignment(
+          attempt.user as Types.ObjectId,
+          attempt.module as Types.ObjectId,
+          attempt.therapist as Types.ObjectId
+        )
+        if (possible) assignmentId = String(possible._id)
+      }
+      if (assignmentId) {
+        await ModuleAssignment.findByIdAndUpdate(assignmentId, {
+          latestAttempt: attempt._id,
+          status: 'completed',
+        }).exec()
+      }
+
+      res.status(200).json({ success: true, attempt })
+    }
+
     // For questionnaires: ensure you have answers to module questions (optional strictness)
     if (attempt.moduleType === 'questionnaire') {
       const questions = await Question.find({ module: attempt.module })
@@ -455,7 +622,6 @@ export const submitAttempt = async (req: Request, res: Response) => {
       }
     }
 
-    const now = new Date()
     const totalScore = (attempt.answers || []).reduce(
       (sum, a: any) => sum + (a.chosenScore || 0),
       0
@@ -859,15 +1025,16 @@ export const getMyAttemptDetail = async (req: Request, res: Response) => {
         .lean()
     }
 
-    const detail = decorateAttemptItems(attempt)
+    const payload: any = { ...attempt, band }
+    if (attempt.moduleType === 'questionnaire') {
+      payload.detail = decorateAttemptItems(attempt)
+    } else if (attempt.moduleType === 'activity_diary') {
+      payload.diary = decorateDiaryDetail(attempt)
+    }
 
     res.status(200).json({
       success: true,
-      attempt: {
-        ...attempt,
-        band,
-        detail,
-      },
+      attempt: payload,
     })
   } catch (error) {
     errorHandler(res, error)
@@ -928,27 +1095,29 @@ export const getAttemptDetailForTherapist = async (
       Module.findById(attempt.module).select('_id title type').lean(),
     ])
 
-    const detail = decorateAttemptItems(attempt)
+    const payload: any = {
+      ...attempt,
+      band,
+      patient: patient
+        ? {
+            _id: patient._id,
+            name: patient.name,
+            username: patient.username,
+            email: patient.email,
+          }
+        : undefined,
+      module: moduleDoc
+        ? { _id: moduleDoc._id, title: moduleDoc.title, type: moduleDoc.type }
+        : undefined,
+    }
 
-    res.status(200).json({
-      success: true,
-      attempt: {
-        ...attempt,
-        band,
-        detail,
-        patient: patient
-          ? {
-              _id: patient._id,
-              name: patient.name,
-              username: patient.username,
-              email: patient.email,
-            }
-          : undefined,
-        module: moduleDoc
-          ? { _id: moduleDoc._id, title: moduleDoc.title, type: moduleDoc.type }
-          : undefined,
-      },
-    })
+    if (attempt.moduleType === 'questionnaire') {
+      payload.detail = decorateAttemptItems(attempt)
+    } else if (attempt.moduleType === 'activity_diary') {
+      payload.diary = decorateDiaryDetail(attempt)
+    }
+
+    res.status(200).json({ success: true, attempt: payload })
   } catch (error) {
     errorHandler(res, error)
   }

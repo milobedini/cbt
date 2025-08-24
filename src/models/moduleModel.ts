@@ -4,7 +4,7 @@ type IModule = Document & {
   title: string
   description: string
   program: Types.ObjectId
-  type: 'questionnaire' | 'psychoeducation' | 'exercise'
+  type: 'questionnaire' | 'psychoeducation' | 'exercise' | 'activity_diary'
   createdAt: Date
   updatedAt: Date
   disclaimer?: string
@@ -19,7 +19,7 @@ const moduleSchema = new mongoose.Schema<IModule>(
     program: { type: Schema.Types.ObjectId, ref: 'Program', required: true },
     type: {
       type: String,
-      enum: ['questionnaire', 'psychoeducation', 'exercise'],
+      enum: ['questionnaire', 'psychoeducation', 'exercise', 'activity_diary'],
       required: true,
     },
     disclaimer: String,

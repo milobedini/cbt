@@ -103,7 +103,11 @@ export type ProgramWithModules = ProgramBase & {
 
 export type ProgramRef = Pick<Program, '_id' | 'title' | 'description'>
 
-export type ModuleType = 'questionnaire' | 'psychoeducation' | 'exercise'
+export type ModuleType =
+  | 'questionnaire'
+  | 'psychoeducation'
+  | 'exercise'
+  | 'activity_diary'
 
 export type Module = {
   _id: string
@@ -290,7 +294,12 @@ export type ModuleDetailResponse = {
 export type StartAttemptResponse = { success: boolean; attempt: ModuleAttempt }
 
 export type SaveProgressInput = {
+  // questionnaire
   answers?: AttemptAnswer[]
+  // diary
+  diaryEntries?: DiaryEntryInput[]
+  merge?: boolean
+  // common
   userNote?: string
 }
 export type SaveProgressResponse = { success: boolean; attempt: ModuleAttempt }
@@ -489,9 +498,52 @@ export type AttemptDetail = {
   percentComplete: number
 }
 
+export type DiaryEntry = {
+  at: string // ISO datetime
+  label?: string // e.g., "7–8am"
+  activity: string // free text (can be empty string)
+  mood?: number // 0..100
+  achievement?: number // 0..10
+  closeness?: number // 0..10
+  enjoyment?: number // 0..10
+}
+
+export type DiaryEntryInput = {
+  at: string // ISO datetime
+  label?: string
+  activity?: string
+  mood?: number
+  achievement?: number
+  closeness?: number
+  enjoyment?: number
+}
+
+export type DiaryDay = {
+  dateISO: string // YYYY-MM-DD in Europe/London
+  entries: DiaryEntry[]
+  avgMood: number | null
+  avgAchievement: number | null
+  avgCloseness: number | null
+  avgEnjoyment: number | null
+}
+
+export type DiaryTotals = {
+  count: number
+  avgMood: number | null
+  avgAchievement: number | null
+  avgCloseness: number | null
+  avgEnjoyment: number | null
+}
+
+export type DiaryDetail = {
+  days: DiaryDay[]
+  totals: DiaryTotals
+}
+
 export type AttemptDetailResponseItem = ModuleAttempt & {
   band?: ScoreBandSummary
-  detail: AttemptDetail // <-- add this
+  detail?: AttemptDetail
+  diary?: DiaryDetail
   patient?: Pick<AuthUser, '_id' | 'name' | 'username' | 'email'>
   module?: Pick<Module, '_id' | 'title' | 'type'>
 }

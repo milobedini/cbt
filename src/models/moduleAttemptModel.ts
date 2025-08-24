@@ -9,12 +9,26 @@ interface IAnswer {
   chosenText?: string // NEW
 }
 
+interface IDiaryEntry {
+  at: Date // when the activity happened (or start of the slot)
+  label?: string // e.g. "7–8am" (optional)
+  activity: string // free text
+  mood?: number // 0-100%
+  achievement?: number // 0..10
+  closeness?: number //0-10
+  enjoyment?: number // 0..10
+}
+
 interface IModuleAttempt extends Document {
   user: Types.ObjectId
   therapist?: Types.ObjectId // snapshot for easy therapist queries
   program: Types.ObjectId
   module: Types.ObjectId
-  moduleType: 'questionnaire' | 'psychoeducation' | 'exercise'
+  moduleType:
+    | 'questionnaire'
+    | 'psychoeducation'
+    | 'exercise'
+    | 'activity_diary'
 
   // lifecycle
   status: AttemptStatus
@@ -42,6 +56,9 @@ interface IModuleAttempt extends Document {
       choices: Array<{ text: string; score: number }>
     }>
   }
+
+  // Diary
+  diaryEntries?: IDiaryEntry[]
 
   // notes / metadata
   userNote?: string
@@ -73,7 +90,7 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
     },
     moduleType: {
       type: String,
-      enum: ['questionnaire', 'psychoeducation', 'exercise'],
+      enum: ['questionnaire', 'psychoeducation', 'exercise', 'activity_diary'],
       required: true,
     },
 
@@ -105,6 +122,19 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
     totalScore: Number,
     scoreBandLabel: String,
     weekStart: Date,
+
+    // Diary
+    diaryEntries: [
+      {
+        at: { type: Date, required: true, index: true },
+        label: { type: String, trim: true, maxlength: 100 },
+        activity: { type: String, trim: true, maxlength: 1000 },
+        mood: { type: Number, min: 0, max: 100 },
+        achievement: { type: Number, min: 0, max: 10 },
+        closeness: { type: Number, min: 0, max: 10 },
+        enjoyment: { type: Number, min: 0, max: 10 },
+      },
+    ],
 
     contentVersion: Number,
     moduleSnapshot: {

@@ -10,7 +10,8 @@
     "refresh": "ts-node ./src/seeds/phq9.ts",
     "seed": "ts-node ./src/seeds/questionnaires.ts",
     "seed-others": "ts-node ./src/seeds/otherPrograms.ts",
-    "drop": "ts-node ./src/seeds/drop.ts"
+    "drop": "ts-node ./src/seeds/drop.ts",
+    "diary": "ts-node ./src/seeds/diary.ts"
   },
   "repository": {
     "type": "git",
