@@ -1,7 +1,7 @@
 {
   "name": "@milobedini/shared-types",
-  "type": "module",
-  "version": "1.0.69",
+  "type": "commonjs",
+  "version": "1.0.72",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "sideEffects": false,
