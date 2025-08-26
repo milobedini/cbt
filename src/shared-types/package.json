@@ -1,7 +1,7 @@
 {
   "name": "@milobedini/shared-types",
   "type": "module",
-  "version": "1.0.68",
+  "version": "1.0.69",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "sideEffects": false,
@@ -14,5 +14,9 @@
     "prepublishOnly": "npm run clean && npm run build",
     "publish:pkg": "npm version patch && npm publish --access public"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.9.2"
+  }
 }

@@ -4,7 +4,8 @@
     "module": "ESNext",
     "declaration": true,
     "emitDeclarationOnly": false,
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
+    "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "strict": true
