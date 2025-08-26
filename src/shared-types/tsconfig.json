@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "declaration": true,
-    "emitDeclarationOnly": true,
+    "emitDeclarationOnly": false,
     "moduleResolution": "Node",
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
