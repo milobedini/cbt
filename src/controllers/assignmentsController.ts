@@ -153,7 +153,25 @@ export const getMyAssignments = async (req: Request, res: Response) => {
       .populate('program', '_id title description')
       .populate(
         'latestAttempt',
-        '_id status completedAt totalScore scoreBandLabel answers moduleSnapshot.questions diaryEntries.at moduleType startedAt lastInteractionAt'
+        [
+          '_id',
+          'status',
+          'completedAt',
+          'totalScore',
+          'scoreBandLabel',
+          'answers',
+          'moduleSnapshot.questions',
+          // ⬇️ include required diary fields
+          'diaryEntries.at',
+          'diaryEntries.activity',
+          'diaryEntries.mood',
+          'diaryEntries.achievement',
+          'diaryEntries.closeness',
+          'diaryEntries.enjoyment',
+          'moduleType',
+          'startedAt',
+          'lastInteractionAt',
+        ].join(' ')
       )
       .populate('therapist', 'name')
       .lean()
