@@ -4,6 +4,7 @@ import ModuleAssignment from '../models/moduleAssignmentModel'
 import User, { UserRole } from '../models/userModel'
 import Module from '../models/moduleModel'
 import { errorHandler } from '../utils/errorHandler'
+import { computePercentCompleteForAttempt } from './attemptsController'
 
 function isAdmin(user: any) {
   return user.roles?.includes(UserRole.ADMIN)
@@ -150,11 +151,25 @@ export const getMyAssignments = async (req: Request, res: Response) => {
       .sort({ dueAt: 1, createdAt: -1 })
       .populate('module', '_id title type accessPolicy')
       .populate('program', '_id title description')
-      .populate('latestAttempt', '_id completedAt totalScore scoreBandLabel')
+      .populate(
+        'latestAttempt',
+        '_id status completedAt totalScore scoreBandLabel answers moduleSnapshot.questions diaryEntries.at moduleType startedAt lastInteractionAt'
+      )
       .populate('therapist', 'name')
       .lean()
 
-    res.status(200).json({ success: true, assignments: items })
+    const assignments = items.map((asg: any) => {
+      const la = asg.latestAttempt
+      const percentComplete =
+        asg.status === 'completed'
+          ? 100
+          : la
+          ? computePercentCompleteForAttempt(la)
+          : 0 // no attempt yet
+      return { ...asg, percentComplete }
+    })
+
+    res.status(200).json({ success: true, assignments })
   } catch (error) {
     errorHandler(res, error)
   }

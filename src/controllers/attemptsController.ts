@@ -167,6 +167,68 @@ function enrichAnswersWithChoiceMetaFromSnapshot(attempt: any) {
   })
 }
 
+export function computePercentCompleteForAttempt(attempt: any): number {
+  try {
+    if (!attempt) return 0
+
+    // Submitted attempts are "complete" from a UX perspective
+    if (attempt.status === 'submitted') return 100
+
+    if (attempt.moduleType === 'questionnaire') {
+      const snapQs = attempt?.moduleSnapshot?.questions || []
+      const total = snapQs.length
+      if (!total) return 0
+
+      const answered = (attempt.answers || []).filter(
+        (a: any) => a && a.chosenScore != null
+      ).length
+      return Math.round((answered / total) * 100)
+    }
+
+    if (attempt.moduleType === 'activity_diary') {
+      // For diaries, show progress within the *current* London week:
+      //   unique days with ≥1 entry / days elapsed this week (Mon..today).
+      const now = new Date()
+      const weekStart = computeWeekStart(now) // Monday 00:00 (UTC)
+      const weekStartLdn = DateTime.fromJSDate(weekStart, { zone: LONDON_TZ })
+      const todayLdn = DateTime.fromJSDate(now, { zone: LONDON_TZ })
+
+      // Days elapsed this week (Mon..today), inclusive
+      const daysElapsed = Math.max(
+        1,
+        Math.min(
+          7,
+          Math.floor(todayLdn.startOf('day').diff(weekStartLdn, 'days').days) +
+            1
+        )
+      )
+
+      const entries = Array.isArray(attempt.diaryEntries)
+        ? attempt.diaryEntries
+        : []
+
+      const dayKeys = new Set<string>()
+      for (const e of entries) {
+        const d = new Date(e.at)
+        if (isNaN(d.getTime())) continue
+        if (d < weekStart || d > now) continue
+        const key = DateTime.fromJSDate(d, { zone: LONDON_TZ })
+          .startOf('day')
+          .toISODate()
+        if (key) dayKeys.add(key)
+      }
+
+      const filledDays = Math.min(dayKeys.size, daysElapsed)
+      return Math.round((filledDays / daysElapsed) * 100)
+    }
+
+    // Other types default to 0 for now
+    return 0
+  } catch {
+    return 0
+  }
+}
+
 // Rare fallback if there’s no snapshot (shouldn’t happen with your start flow)
 async function enrichAnswersWithChoiceMetaFromDB(attempt: any) {
   if (!Array.isArray(attempt.answers)) return
@@ -697,7 +759,6 @@ export const getMyAttempts = async (req: Request, res: Response) => {
     const lim = Math.min(parseInt(limit, 10) || 20, 100)
 
     if (status === 'active') {
-      // Drafts/in-progress, newest interaction first
       const match: any = { user: userId, status: 'started' }
       if (moduleId) match.module = new Types.ObjectId(String(moduleId))
 
@@ -705,12 +766,17 @@ export const getMyAttempts = async (req: Request, res: Response) => {
         .sort({ lastInteractionAt: -1 })
         .limit(lim)
         .select(
-          '_id module program moduleType startedAt lastInteractionAt iteration userNote dueAt status'
+          '_id module program moduleType startedAt lastInteractionAt iteration userNote dueAt status answers moduleSnapshot.questions diaryEntries.at'
         )
         .lean()
         .populate('module', 'title')
 
-      res.status(200).json({ success: true, attempts: rows, nextCursor: null })
+      const attempts = rows.map((a: any) => ({
+        ...a,
+        percentComplete: computePercentCompleteForAttempt(a),
+      }))
+
+      res.status(200).json({ success: true, attempts, nextCursor: null })
       return
     }
 
@@ -777,9 +843,13 @@ export const getMyAttempts = async (req: Request, res: Response) => {
     ]
 
     const rows = await (ModuleAttempt as any).aggregate(pipeline)
+    const attempts = rows.map((a: any) => ({
+      ...a,
+      percentComplete: 100,
+    }))
     // simple time cursor (ISO). If you want 2-field cursor, we can upgrade later.
     const nextCursor = null
-    res.status(200).json({ success: true, attempts: rows, nextCursor })
+    res.status(200).json({ success: true, attempts, nextCursor })
   } catch (error) {
     errorHandler(res, error)
   }
@@ -879,8 +949,11 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
       },
       { $limit: lim },
     ])
-
-    res.status(200).json({ success: true, rows })
+    const decorated = rows.map((r: any) => ({
+      ...r,
+      percentComplete: 100,
+    }))
+    res.status(200).json({ success: true, rows: decorated })
   } catch (error) {
     errorHandler(res, error)
   }
@@ -968,7 +1041,7 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
       .sort({ [sortField]: -1 }) // newest first by chosen field
       .limit(pageSize + 1) // fetch one extra to detect next page
       .select(
-        '_id totalScore scoreBandLabel weekStart completedAt startedAt lastInteractionAt iteration moduleType module program dueAt userNote'
+        '_id totalScore scoreBandLabel weekStart completedAt startedAt lastInteractionAt iteration moduleType module program dueAt userNote status answers moduleSnapshot.questions diaryEntries.at'
       )
       .lean()
       .populate('module', 'title')
@@ -981,9 +1054,15 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
       attempts.length = pageSize
     }
 
+    const rows = attempts.map((a: any) => ({
+      ...a,
+      percentComplete:
+        a.status === 'submitted' ? 100 : computePercentCompleteForAttempt(a),
+    }))
+
     res.status(200).json({
       success: true,
-      attempts,
+      attempts: rows,
       nextCursor,
     })
   } catch (error) {

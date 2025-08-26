@@ -230,7 +230,9 @@ export type AttemptListItem = Pick<
   | 'lastInteractionAt'
   | 'dueAt'
   | 'userNote'
->
+> & {
+  percentComplete?: number
+}
 
 // ==================================
 // Assignments (optional feature)
@@ -345,6 +347,8 @@ export type TherapistLatestRow = {
   scoreBandLabel?: string
   weekStart?: string
   band?: ScoreBandSummary
+
+  percentComplete?: number
 }
 
 export type TherapistLatestResponse = {
@@ -432,6 +436,7 @@ export type AssignmentLatestAttemptPreview = {
   completedAt?: string
   totalScore?: number
   scoreBandLabel?: string
+  percentComplete?: number
 }
 
 export type ModulePreviewForAssignment = Pick<
@@ -461,6 +466,7 @@ export type MyAssignmentView = {
   latestAttempt?: AssignmentLatestAttemptPreview
   createdAt: string
   updatedAt: string
+  percentComplete?: number
 }
 
 export type MyAssignmentsResponse = {
