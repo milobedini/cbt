@@ -8,9 +8,9 @@ import ModuleAttempt from '../models/moduleAttemptModel'
 import ModuleAssignment from '../models/moduleAssignmentModel'
 import { errorHandler } from '../utils/errorHandler'
 import { DateTime } from 'luxon'
-import { SLOT_END_HOUR } from '../shared-types/types'
-import { SLOT_START_HOUR } from '../shared-types/types'
-import { SLOT_STEP_HOURS } from '../shared-types/types'
+import { SLOT_END_HOUR } from '../shared-types/constants'
+import { SLOT_START_HOUR } from '../shared-types/constants'
+import { SLOT_STEP_HOURS } from '../shared-types/constants'
 
 // ---- Utils ----
 const LONDON_TZ = 'Europe/London'
