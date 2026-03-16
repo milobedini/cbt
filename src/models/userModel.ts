@@ -34,7 +34,7 @@ const userSchema = new mongoose.Schema<IUser>(
       trim: true,
       lowercase: true,
       minlength: [3, 'Username must be at least 3 characters long!'],
-      maxlength: [20, 'Username cannot exceed 50 characters!'],
+      maxlength: [20, 'Username cannot exceed 20 characters!'],
     },
     email: {
       type: String,
@@ -120,8 +120,7 @@ userSchema.index({ therapist: 1 })
 userSchema.index({ createdAt: -1 })
 userSchema.index({ lastLogin: -1 })
 
-// text-ish search via case-insensitive regex still benefits from these:
-userSchema.index({ username: 1 })
+// username and email already indexed via `unique: true`
 userSchema.index({ name: 1 })
 
 const User = mongoose.model<IUser>('User', userSchema)

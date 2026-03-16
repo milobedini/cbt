@@ -11,6 +11,10 @@ import { DateTime } from 'luxon'
 import { SLOT_END_HOUR } from '../shared-types/constants'
 import { SLOT_START_HOUR } from '../shared-types/constants'
 import { SLOT_STEP_HOURS } from '../shared-types/constants'
+import {
+  isAdmin,
+  isVerifiedTherapist,
+} from '../utils/roles'
 
 // ---- Utils ----
 const LONDON_TZ = 'Europe/London'
@@ -18,20 +22,9 @@ const LONDON_TZ = 'Europe/London'
 // Monday 00:00 London time, returned as UTC JS Date
 function computeWeekStart(d: Date): Date {
   const dt = DateTime.fromJSDate(d, { zone: LONDON_TZ })
-  const mondayStart = dt.startOf('week').plus({ days: 1 }).startOf('day') // Luxon weeks start Sunday
-  // If dt is Monday already, this still yields Monday 00:00
-  const normalized = mondayStart.toUTC()
-  return normalized.toJSDate()
-}
-
-function isAdmin(user: any) {
-  return user.roles?.includes(UserRole.ADMIN)
-}
-function isTherapist(user: any) {
-  return user.roles?.includes(UserRole.THERAPIST)
-}
-function isVerifiedTherapist(user: any) {
-  return isTherapist(user) && !!user.isVerifiedTherapist
+  // Luxon startOf('week') already returns Monday (ISO standard)
+  const mondayStart = dt.startOf('week')
+  return mondayStart.toUTC().toJSDate()
 }
 
 // active assignment finder (assigned or in_progress)
@@ -678,6 +671,7 @@ export const submitAttempt = async (req: Request, res: Response) => {
       }
 
       res.status(200).json({ success: true, attempt })
+      return
     }
 
     // For questionnaires: ensure you have answers to module questions (optional strictness)

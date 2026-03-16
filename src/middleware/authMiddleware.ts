@@ -31,7 +31,10 @@ const authenticateUser = async (
 
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string }
 
-    const user = await User.findById(decoded.userId, '_id username email')
+    const user = await User.findById(
+      decoded.userId,
+      '_id username email roles isVerifiedTherapist'
+    )
 
     if (!user) {
       res.status(401).json({ message: 'Not authorized, user not found' })

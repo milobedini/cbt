@@ -1,17 +1,11 @@
 import { Request, Response } from 'express'
 import { Types } from 'mongoose'
 import ModuleAssignment from '../models/moduleAssignmentModel'
-import User, { UserRole } from '../models/userModel'
+import User from '../models/userModel'
 import Module from '../models/moduleModel'
 import { errorHandler } from '../utils/errorHandler'
 import { computePercentCompleteForAttempt } from './attemptsController'
-
-function isAdmin(user: any) {
-  return user.roles?.includes(UserRole.ADMIN)
-}
-function isVerifiedTherapist(user: any) {
-  return user.roles?.includes(UserRole.THERAPIST) && user.isVerifiedTherapist
-}
+import { isAdmin, isVerifiedTherapist } from '../utils/roles'
 
 export const createAssignment = async (req: Request, res: Response) => {
   try {

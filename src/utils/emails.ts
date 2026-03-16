@@ -5,18 +5,20 @@ import {
 } from '../mailtrap/emailTemplates'
 import { mailtrapClient, sender } from '../mailtrap/mailtrap.config'
 
+// In dev/sandbox mode, Mailtrap may only deliver to verified addresses.
+// Set MAILTRAP_OVERRIDE_EMAIL in .env to route all mail to a test inbox.
+const resolveRecipient = (email: string) => {
+  const override = process.env.MAILTRAP_OVERRIDE_EMAIL
+  return override || email
+}
+
 const sendVerificationEmail = async (
-  // Temporarily can only use my email
-  email: string = 'milobedini64@gmail.com',
+  email: string,
   verificationCode: string
 ): Promise<void> => {
-  const recipient = [
-    {
-      email,
-    },
-  ]
+  const recipient = [{ email: resolveRecipient(email) }]
   try {
-    const response = await mailtrapClient.send({
+    await mailtrapClient.send({
       from: sender,
       to: recipient,
       subject: 'Verify Your CBT Email Address',
@@ -33,12 +35,12 @@ const sendVerificationEmail = async (
 }
 
 const sendWelcomeEmail = async (
-  email: string = 'milobedini64@gmail.com',
+  email: string,
   username: string
 ): Promise<void> => {
-  const recipient = [{ email }]
+  const recipient = [{ email: resolveRecipient(email) }]
   try {
-    const response = await mailtrapClient.send({
+    await mailtrapClient.send({
       from: sender,
       to: recipient,
       template_uuid: '780d86cd-5eee-4e65-b000-093f4300a8ad',
@@ -53,12 +55,12 @@ const sendWelcomeEmail = async (
 }
 
 const sendPasswordResetEmail = async (
-  email: string = 'milobedini64@gmail.com',
+  email: string,
   resetUrl: string
 ): Promise<void> => {
-  const recipient = [{ email }]
+  const recipient = [{ email: resolveRecipient(email) }]
   try {
-    const response = await mailtrapClient.send({
+    await mailtrapClient.send({
       from: sender,
       to: recipient,
       subject: 'Reset Your CBT Password',
@@ -72,12 +74,12 @@ const sendPasswordResetEmail = async (
 }
 
 const sendResetSuccessEmail = async (
-  email: string = 'milobedini64@gmail.com',
+  email: string,
   username: string
 ): Promise<void> => {
-  const recipient = [{ email }]
+  const recipient = [{ email: resolveRecipient(email) }]
   try {
-    const response = await mailtrapClient.send({
+    await mailtrapClient.send({
       from: sender,
       to: recipient,
       subject: 'Your CBT Password Has Been Reset',

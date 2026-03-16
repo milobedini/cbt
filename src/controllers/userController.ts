@@ -5,6 +5,9 @@ import { errorHandler } from '../utils/errorHandler'
 import { isValidObjectId, Types } from 'mongoose'
 
 // Helpers
+const escapeRegex = (str: string): string =>
+  str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 type Boolish = boolean | undefined
 
 const parseBool = (v: any): Boolish => {
@@ -83,10 +86,11 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
     const match: Record<string, any> = {}
 
     if (q) {
+      const escaped = escapeRegex(q)
       match.$or = [
-        { username: { $regex: q, $options: 'i' } },
-        { email: { $regex: q, $options: 'i' } },
-        { name: { $regex: q, $options: 'i' } },
+        { username: { $regex: escaped, $options: 'i' } },
+        { email: { $regex: escaped, $options: 'i' } },
+        { name: { $regex: escaped, $options: 'i' } },
       ]
     }
 
@@ -109,7 +113,7 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (therapistId && isValidObjectId(therapistId)) {
-      match.therapist = new (require('mongoose').Types.ObjectId)(therapistId)
+      match.therapist = new Types.ObjectId(therapistId)
     }
 
     if (ids.length) {
@@ -117,7 +121,7 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
       if (validIds.length) {
         match._id = {
           $in: validIds.map(
-            (id: string) => new (require('mongoose').Types.ObjectId)(id)
+            (id: string) => new Types.ObjectId(id)
           ),
         }
       } else {
@@ -152,6 +156,17 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
     }
 
     // ------- Build $sort -------
+    const allowedSortFields = new Set([
+      'username',
+      'email',
+      'name',
+      'createdAt',
+      'updatedAt',
+      'lastLogin',
+      'roles',
+      'isVerified',
+      'isVerifiedTherapist',
+    ])
     // Default sort: most recently created first
     const sort: Record<string, 1 | -1> = {}
     if (sortParam) {
@@ -161,11 +176,12 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
         .map((s) => s.trim())
         .filter(Boolean)) {
         const [field, dirRaw] = token.split(':').map((s) => s.trim())
-        if (!field) continue
+        if (!field || !allowedSortFields.has(field)) continue
         const dir = (dirRaw || 'asc').toLowerCase()
         sort[field] = dir === 'desc' ? -1 : 1
       }
-    } else {
+    }
+    if (Object.keys(sort).length === 0) {
       sort.createdAt = -1
     }
 

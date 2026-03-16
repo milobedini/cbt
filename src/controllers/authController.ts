@@ -1,7 +1,6 @@
 import { Request, Response } from 'express'
 import User, { IUser, UserRole } from '../models/userModel'
 import bcrypt from 'bcryptjs'
-import dotenv from 'dotenv'
 import { errorHandler } from '../utils/errorHandler'
 import {
   generateTokenAndSetCookie,
@@ -13,13 +12,12 @@ import {
   sendVerificationEmail,
   sendWelcomeEmail,
 } from '../utils/emails'
-dotenv.config()
 
 export const USER_ROLES_ARRAY = ['therapist', 'admin', 'patient'] as const
 
 const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { username, email, password, roles, isVerifiedTherapist } = req.body
+    const { username, email, password, roles } = req.body
 
     if (!username || !email || !password) {
       res.status(400).json({ message: 'Missing credentials!' })
@@ -29,8 +27,14 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ message: 'At least one role is required!' })
       return
     }
-    const validRoles = Object.values(UserRole)
-    const hasInvalidRole = roles.some((role) => !validRoles.includes(role))
+    // Only allow patient and therapist roles during self-registration
+    const allowedRegistrationRoles: UserRole[] = [
+      UserRole.PATIENT,
+      UserRole.THERAPIST,
+    ]
+    const hasInvalidRole = roles.some(
+      (role: UserRole) => !allowedRegistrationRoles.includes(role)
+    )
 
     if (hasInvalidRole) {
       res.status(400).json({ message: 'One or more roles are invalid!' })
@@ -52,9 +56,6 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
     const hashedPassword = await bcrypt.hash(password, salt)
     const verificationCode = generateVerificationCode()
 
-    const shouldVerifyTherapist =
-      roles.includes(UserRole.THERAPIST) && isVerifiedTherapist
-
     const newUser = new User({
       username,
       email,
@@ -62,7 +63,7 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
       verificationCode,
       verificationCodeExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       roles,
-      isVerifiedTherapist: shouldVerifyTherapist,
+      isVerifiedTherapist: false,
     })
     await newUser.save()
 
@@ -76,8 +77,7 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    // Temporarily can only use my email
-    await sendVerificationEmail(undefined, newUser.verificationCode)
+    await sendVerificationEmail(newUser.email, newUser.verificationCode)
 
     res.status(201).json({
       success: true,
@@ -112,8 +112,7 @@ const verifyEmail = async (req: Request, res: Response): Promise<void> => {
     user.verificationCodeExpires = undefined
     await user.save()
 
-    // Temporarily can only use my email
-    await sendWelcomeEmail(undefined, user.username)
+    await sendWelcomeEmail(user.email, user.username)
     res.status(200).json({
       success: true,
       message: 'Email verified successfully!',
@@ -142,13 +141,13 @@ const loginUser = async (req: Request, res: Response): Promise<void> => {
       : await User.findOne({ username: identifier }).select('+password')
 
     if (!user) {
-      res.status(400).json({ message: 'User not found!' })
+      res.status(401).json({ message: 'Invalid credentials' })
       return
     }
 
     const isMatch = await bcrypt.compare(password, user.password)
     if (!isMatch) {
-      res.status(400).json({ message: 'Invalid password!' })
+      res.status(401).json({ message: 'Invalid credentials' })
       return
     }
     if (!user.isVerified) {
@@ -180,7 +179,7 @@ const loginUser = async (req: Request, res: Response): Promise<void> => {
   }
 }
 
-const logoutUser = async (req: Request, res: Response): Promise<void> => {
+const logoutUser = async (_req: Request, res: Response): Promise<void> => {
   try {
     res.clearCookie('token')
     res.status(200).json({ message: 'Logout successful!' })
@@ -192,11 +191,17 @@ const logoutUser = async (req: Request, res: Response): Promise<void> => {
 const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   const { email } = req.body
   try {
+    // Always return the same response to prevent user enumeration
+    const genericResponse = {
+      success: true,
+      message: 'If an account with that email exists, a reset link has been sent.',
+    }
+
     const user = await User.findOne({
       email: email.trim(),
     })
     if (!user) {
-      res.status(400).json({ success: false, message: 'User not found!' })
+      res.status(200).json(genericResponse)
       return
     }
     const resetToken = crypto.randomUUID()
@@ -207,14 +212,10 @@ const forgotPassword = async (req: Request, res: Response): Promise<void> => {
     await user.save()
 
     await sendPasswordResetEmail(
-      // Can only use my email temporarily
-      undefined,
+      user.email,
       `${process.env.CLIENT_URL}/reset-password/${resetToken}`
     )
-    res.status(200).json({
-      success: true,
-      message: 'Password reset email sent successfully!',
-    })
+    res.status(200).json(genericResponse)
   } catch (error) {
     errorHandler(res, error)
   }
@@ -253,11 +254,7 @@ const resetPassword = async (req: Request, res: Response): Promise<void> => {
     user.resetPasswordExpires = undefined
     await user.save()
 
-    await sendResetSuccessEmail(
-      // Can only use my email temporarily
-      undefined,
-      user.username
-    )
+    await sendResetSuccessEmail(user.email, user.username)
 
     res.status(200).json({
       success: true,
@@ -274,7 +271,13 @@ const resetPassword = async (req: Request, res: Response): Promise<void> => {
 }
 
 const updateName = async (req: Request, res: Response): Promise<void> => {
-  const { newName, userId } = req.body
+  const { newName } = req.body
+  const userId = req.user?._id
+
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' })
+    return
+  }
 
   try {
     const user = await User.findById(userId)

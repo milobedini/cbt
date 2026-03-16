@@ -1,4 +1,5 @@
 import express from 'express'
+import mongoose from 'mongoose'
 import dotenv from 'dotenv'
 import authRouter from './routes/authRoute'
 import userRouter from './routes/userRoute'
@@ -27,21 +28,19 @@ connectDB()
 
 app.use(express.json())
 app.use(cookieParser())
-app.use((req, res, next) => {
-  const { url } = req
-  console.log('Server hit', url)
+app.use((req, _res, next) => {
+  console.log('Server hit', req.url)
   next()
 })
 app.use(
   cors({
     origin: (origin, callback) => {
       if (isDev) {
-        // ✅ In dev, allow all origins (including undefined like Postman or curl)
         return callback(null, true)
       }
 
-      // ✅ In prod, strictly whitelist allowed origins
-      if (!origin || allowedOrigins.includes(origin)) {
+      // In prod, require a valid origin from the whitelist
+      if (origin && allowedOrigins.includes(origin)) {
         return callback(null, true)
       }
 
@@ -54,13 +53,26 @@ app.use('/api', authRouter)
 app.use('/api/user', authenticateUser, userRouter)
 app.use('/api/modules', authenticateUser, moduleRouter)
 app.use('/api/programs', programRouter)
-app.use('/api/attempts', authenticateUser, attemptRouter) // save/submit by attemptId
+app.use('/api/attempts', authenticateUser, attemptRouter)
 app.use('/api/assignments', authenticateUser, assignmentRouter)
 
-app.get('/', (req, res) => {
-  res.send('JWT Authentication System is running!')
+app.get('/', (_req, res) => {
+  res.send('CBT API is running')
 })
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`)
 })
+
+// Graceful shutdown
+const shutdown = async () => {
+  console.log('Shutting down gracefully...')
+  server.close(async () => {
+    await mongoose.connection.close()
+    console.log('MongoDB connection closed')
+    process.exit(0)
+  })
+}
+
+process.on('SIGTERM', shutdown)
+process.on('SIGINT', shutdown)
