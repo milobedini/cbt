@@ -1,4 +1,5 @@
 import { Request, Response } from 'express'
+import crypto from 'crypto'
 import User, { IUser, UserRole } from '../models/userModel'
 import bcrypt from 'bcryptjs'
 import { errorHandler } from '../utils/errorHandler'
@@ -55,12 +56,16 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
     const salt = await bcrypt.genSalt(10)
     const hashedPassword = await bcrypt.hash(password, salt)
     const verificationCode = generateVerificationCode()
+    const hashedVerificationCode = crypto
+      .createHash('sha256')
+      .update(verificationCode)
+      .digest('hex')
 
     const newUser = new User({
       username,
       email,
       password: hashedPassword,
-      verificationCode,
+      verificationCode: hashedVerificationCode,
       verificationCodeExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       roles,
       isVerifiedTherapist: false,
@@ -69,15 +74,7 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
 
     generateTokenAndSetCookie(res, newUser._id as string)
 
-    if (!newUser.verificationCode) {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to generate verification code!',
-      })
-      return
-    }
-
-    await sendVerificationEmail(newUser.email, newUser.verificationCode)
+    await sendVerificationEmail(newUser.email, verificationCode)
 
     res.status(201).json({
       success: true,
@@ -100,8 +97,13 @@ const verifyEmail = async (req: Request, res: Response): Promise<void> => {
     return
   }
   try {
+    const hashedCode = crypto
+      .createHash('sha256')
+      .update(verificationCode.trim())
+      .digest('hex')
+
     const user = await User.findOne({
-      verificationCode: verificationCode.trim(),
+      verificationCode: hashedCode,
       verificationCodeExpires: { $gt: new Date() },
     })
     if (!user) {
@@ -212,13 +214,18 @@ const forgotPassword = async (req: Request, res: Response): Promise<void> => {
       res.status(200).json(genericResponse)
       return
     }
-    const resetToken = crypto.randomUUID()
+    const resetToken = crypto.randomBytes(32).toString('hex')
+    const hashedResetToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex')
     const resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000) // 60 minutes
-    user.resetPasswordToken = resetToken
+    user.resetPasswordToken = hashedResetToken
     user.resetPasswordExpires = resetTokenExpires
 
     await user.save()
 
+    // Send the unhashed token in the URL; store the hash in DB
     await sendPasswordResetEmail(
       user.email,
       `${process.env.CLIENT_URL}/reset-password/${resetToken}`
@@ -243,8 +250,13 @@ const resetPassword = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex')
+
     const user = await User.findOne({
-      resetPasswordToken: token,
+      resetPasswordToken: hashedToken,
       resetPasswordExpires: { $gt: new Date() },
     })
 

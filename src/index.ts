@@ -11,6 +11,7 @@ import connectDB from './config/database'
 import cookieParser from 'cookie-parser'
 import authenticateUser from './middleware/authMiddleware'
 import cors from 'cors'
+import rateLimit from 'express-rate-limit'
 dotenv.config()
 
 const isDev = process.env.NODE_ENV !== 'production'
@@ -28,10 +29,12 @@ connectDB()
 
 app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
-app.use((req, _res, next) => {
-  console.log('Server hit', req.url)
-  next()
-})
+if (isDev) {
+  app.use((req, _res, next) => {
+    console.log('Server hit', req.url)
+    next()
+  })
+}
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -49,6 +52,15 @@ app.use(
     credentials: true,
   })
 )
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  message: { message: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+app.use('/api', apiLimiter)
 app.use('/api', authRouter)
 app.use('/api/user', authenticateUser, userRouter)
 app.use('/api/modules', authenticateUser, moduleRouter)

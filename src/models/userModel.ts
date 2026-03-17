@@ -64,6 +64,7 @@ const userSchema = new mongoose.Schema<IUser>(
     },
     verificationCode: {
       type: String,
+      select: false,
     },
     verificationCodeExpires: {
       type: Date,

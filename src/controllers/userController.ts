@@ -35,7 +35,7 @@ const getUser = async (req: Request, res: Response): Promise<void> => {
     const userId = req.user?._id
     const user = await User.findById(
       userId,
-      '_id username email name roles isVerifiedTherapist patients therapist'
+      '_id username email name roles isVerifiedTherapist patients therapist',
     ).populate('therapist', '_id username email')
     if (!user) {
       res.status(404).json({ message: 'User not found' })
@@ -61,7 +61,7 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
     const page = Math.max(parseInt(String(req.query.page || '1'), 10) || 1, 1)
     const limitRaw = Math.max(
       parseInt(String(req.query.limit || '25'), 10) || 25,
-      1
+      1,
     )
     const limit = Math.min(limitRaw, 200)
 
@@ -121,9 +121,7 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
       const validIds = ids.filter(isValidObjectId)
       if (validIds.length) {
         match._id = {
-          $in: validIds.map(
-            (id: string) => new Types.ObjectId(id)
-          ),
+          $in: validIds.map((id: string) => new Types.ObjectId(id)),
         }
       } else {
         // No valid ids provided -> empty result quickly
@@ -301,7 +299,7 @@ const getAllPatients = async (req: Request, res: Response): Promise<void> => {
     const userId = req.user?._id
     const user = await User.findById(
       userId,
-      '_id username email name roles isVerifiedTherapist patients'
+      '_id username email name roles isVerifiedTherapist patients',
     )
     if (!user) {
       res.status(404).json({ message: 'User not found' })
@@ -316,7 +314,7 @@ const getAllPatients = async (req: Request, res: Response): Promise<void> => {
     }
     const patients = await User.find(
       { roles: UserRole.PATIENT },
-      '_id username email name therapist'
+      '_id username email name therapist',
     )
 
     if (!patients || !patients.length) {
@@ -334,7 +332,7 @@ const getClients = async (req: Request, res: Response): Promise<void> => {
     const userId = req.user?._id
     const user = await User.findById(
       userId,
-      '_id username email name roles isVerifiedTherapist patients'
+      '_id username email name roles isVerifiedTherapist patients',
     )
     if (!user) {
       res.status(404).json({ message: 'User not found' })
@@ -350,7 +348,7 @@ const getClients = async (req: Request, res: Response): Promise<void> => {
 
     const patients = await User.find(
       { _id: { $in: user.patients } },
-      '_id username email name therapist'
+      '_id username email name therapist',
     )
 
     if (!patients || !patients.length) {
@@ -365,7 +363,7 @@ const getClients = async (req: Request, res: Response): Promise<void> => {
 
 const addRemoveTherapist = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const userId = req.user?._id
@@ -421,33 +419,26 @@ const addRemoveTherapist = async (
     const alreadyAssigned =
       patient.therapist?.toString() === therapistId.toString()
 
-    let message = ''
-
     if (alreadyAssigned) {
-      // 🔁 Remove therapist from patient
       patient.therapist = undefined
-
-      // 🔁 Remove patient from therapist.patients list
       therapist.patients = (therapist.patients || []).filter(
-        (id) => !id.equals(patientIdObj)
+        (id) => !id.equals(patientIdObj),
       )
-
-      message = 'Therapist removed from patient'
     } else {
-      // ➕ Assign therapist to patient
       patient.therapist = therapistIdObj
 
-      // ➕ Add patient to therapist’s list if not already present
       const alreadyInList = (therapist.patients || []).some((id) =>
-        id.equals(patientIdObj)
+        id.equals(patientIdObj),
       )
 
       if (!alreadyInList) {
         therapist.patients = [...(therapist.patients || []), patientIdObj]
       }
-
-      message = 'Therapist assigned to patient'
     }
+
+    const message = alreadyAssigned
+      ? 'Therapist removed from patient'
+      : 'Therapist assigned to patient'
 
     const session = await mongoose.startSession()
     try {
@@ -469,7 +460,7 @@ const addRemoveTherapist = async (
 
 const adminVerifyTherapist = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const userId = req.user?._id
