@@ -13,7 +13,7 @@ import {
   sendWelcomeEmail,
 } from '../utils/emails'
 
-export const USER_ROLES_ARRAY = ['therapist', 'admin', 'patient'] as const
+export const USER_ROLES_ARRAY = Object.values(UserRole)
 
 const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -95,6 +95,10 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
 
 const verifyEmail = async (req: Request, res: Response): Promise<void> => {
   const { verificationCode } = req.body
+  if (!verificationCode) {
+    res.status(400).json({ success: false, message: 'Verification code is required' })
+    return
+  }
   try {
     const user = await User.findOne({
       verificationCode: verificationCode.trim(),
@@ -190,6 +194,10 @@ const logoutUser = async (_req: Request, res: Response): Promise<void> => {
 
 const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   const { email } = req.body
+  if (!email) {
+    res.status(400).json({ success: false, message: 'Email is required' })
+    return
+  }
   try {
     // Always return the same response to prevent user enumeration
     const genericResponse = {

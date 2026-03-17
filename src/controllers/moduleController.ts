@@ -3,8 +3,11 @@ import Module from '../models/moduleModel'
 import { errorHandler } from '../utils/errorHandler'
 import Question from '../models/questionModel'
 import ScoreBand from '../models/scoreBandModel'
-import ModuleAssignment from '../models/moduleAssignmentModel'
 import mongoose, { Types } from 'mongoose'
+import {
+  resolveModuleAccessMeta,
+  fetchActiveAssignmentsByModule,
+} from '../utils/moduleAccess'
 
 const getModules = async (req: Request, res: Response) => {
   try {
@@ -37,80 +40,20 @@ const getModules = async (req: Request, res: Response) => {
 
     // 3) Build meta (bulk, no N+1)
     const moduleIds = modules.map((m) => m._id as Types.ObjectId)
+    const authenticated = !!userId
 
-    // If user not logged in -> mark all as unauthenticated
-    if (!userId) {
-      const items = modules.map((m) => ({
-        module: m,
-        meta: {
-          canStart: undefined,
-          canStartReason: 'unauthenticated' as const,
-          source: [] as Array<'open' | 'assigned'>,
-          activeAssignmentId: undefined as string | undefined,
-          assignmentStatus: undefined as 'assigned' | 'in_progress' | undefined,
-          dueAt: undefined as Date | undefined,
-        },
-      }))
-      res.status(200).json({ success: true, items })
-      return
-    }
+    const byModule = authenticated
+      ? await fetchActiveAssignmentsByModule(userId, moduleIds)
+      : new Map()
 
-    // a) Active assignments for this user across these modules
-    const activeAsgs = await ModuleAssignment.find({
-      user: userId,
-      module: { $in: moduleIds },
-      status: { $in: ['assigned', 'in_progress'] },
-    })
-      .select('_id module status dueAt')
-      .lean()
-
-    // pick one per module (prefer in_progress, then earliest due)
-    const byModule = new Map<string, (typeof activeAsgs)[number]>()
-    const rank = (s: string) => (s === 'in_progress' ? 1 : 2)
-    for (const a of activeAsgs) {
-      const k = String(a.module)
-      const prev = byModule.get(k)
-      if (
-        !prev ||
-        rank(a.status) < rank(prev.status) ||
-        (a.dueAt && (!prev.dueAt || a.dueAt < prev.dueAt))
-      ) {
-        byModule.set(k, a)
-      }
-    }
-
-    // 4) Decorate each module with meta
-    const items = modules.map((m) => {
-      const mId = String(m._id)
-      const a = byModule.get(mId)
-
-      const source: Array<'open' | 'assigned'> = []
-      if (m.accessPolicy === 'open') source.push('open')
-      if (a) source.push('assigned')
-
-      let canStart = false
-      let canStartReason: 'ok' | 'requires_assignment' = 'ok'
-
-      if (m.accessPolicy === 'open') {
-        canStart = true
-      } else {
-        // 'assigned'
-        canStart = !!a
-        if (!a) canStartReason = 'requires_assignment'
-      }
-
-      return {
-        module: m,
-        meta: {
-          canStart,
-          canStartReason,
-          source,
-          activeAssignmentId: a?._id?.toString(),
-          assignmentStatus: a?.status as 'assigned' | 'in_progress' | undefined,
-          dueAt: a?.dueAt,
-        },
-      }
-    })
+    const items = modules.map((m) => ({
+      module: m,
+      meta: resolveModuleAccessMeta(
+        m.accessPolicy,
+        byModule.get(String(m._id)),
+        authenticated
+      ),
+    }))
 
     res.status(200).json({ success: true, modules: items })
   } catch (error) {
@@ -141,41 +84,27 @@ const getDetailedModuleById = async (req: Request, res: Response) => {
       return
     }
 
+    const authenticated = !!req.user?._id
+    const byModule = authenticated && req.user
+      ? await fetchActiveAssignmentsByModule(
+          req.user._id as Types.ObjectId,
+          [module._id as Types.ObjectId]
+        )
+      : new Map()
+
+    const meta = resolveModuleAccessMeta(
+      module.accessPolicy,
+      byModule.get(String(module._id)),
+      authenticated
+    )
+
     if (module.type === 'activity_diary') {
-      let canStart: boolean | undefined
-      let canStartReason:
-        | 'ok'
-        | 'requires_assignment'
-        | 'unauthenticated'
-        | undefined
-      let activeAssignmentId: string | undefined
-
-      if (!req.user?._id) {
-        canStart = undefined
-        canStartReason = 'unauthenticated'
-      } else if (module.accessPolicy === 'open') {
-        canStart = true
-        canStartReason = 'ok'
-      } else {
-        const a = await ModuleAssignment.findOne({
-          user: req.user._id,
-          module: module._id,
-          status: { $in: ['assigned', 'in_progress'] },
-        })
-          .select('_id')
-          .lean()
-
-        canStart = !!a
-        canStartReason = a ? 'ok' : 'requires_assignment'
-        activeAssignmentId = a?._id?.toString()
-      }
-
       res.status(200).json({
         success: true,
         module,
-        questions: [], // questionnaire-only
-        scoreBands: [], // questionnaire-only
-        meta: { canStart, canStartReason, activeAssignmentId },
+        questions: [],
+        scoreBands: [],
+        meta,
       })
       return
     }
@@ -185,40 +114,12 @@ const getDetailedModuleById = async (req: Request, res: Response) => {
     })
     const scoreBands = await ScoreBand.find({ module: module._id })
 
-    let canStart: boolean | undefined
-    let canStartReason:
-      | 'ok'
-      | 'requires_assignment'
-      | 'unauthenticated'
-      | undefined
-    let activeAssignmentId: string | undefined
-
-    if (!req.user?._id) {
-      canStart = undefined
-      canStartReason = 'unauthenticated'
-    } else if (module.accessPolicy === 'open') {
-      canStart = true
-      canStartReason = 'ok'
-    } else {
-      // 'assigned'
-      const a = await ModuleAssignment.findOne({
-        user: req.user._id,
-        module: module._id,
-        status: { $in: ['assigned', 'in_progress'] },
-      })
-        .select('_id')
-        .lean()
-      canStart = !!a
-      canStartReason = a ? 'ok' : 'requires_assignment'
-      activeAssignmentId = a?._id?.toString()
-    }
-
     res.status(200).json({
       success: true,
       module,
       questions,
       scoreBands,
-      meta: { canStart, canStartReason, activeAssignmentId },
+      meta,
     })
   } catch (error) {
     errorHandler(res, error)
@@ -292,37 +193,15 @@ const getAvailableModules = async (req: Request, res: Response) => {
       return
     }
 
-    // 1) Active assignments for this user (assigned/in_progress)
-    const activeAsgs = await ModuleAssignment.find({
-      user: userId,
-      status: { $in: ['assigned', 'in_progress'] },
-    })
-      .select('_id module status dueAt')
-      .lean()
-
-    // Pick one assignment per module (prefer in_progress, then earliest dueAt)
-    const byModule = new Map<string, (typeof activeAsgs)[number]>()
-    for (const a of activeAsgs) {
-      const k = String(a.module)
-      const prev = byModule.get(k)
-      const rank = (x: any) => (x.status === 'in_progress' ? 1 : 2)
-      if (
-        !prev ||
-        rank(a) < rank(prev) ||
-        (a.dueAt && (!prev.dueAt || a.dueAt < prev.dueAt))
-      ) {
-        byModule.set(k, a)
-      }
-    }
+    const byModule = await fetchActiveAssignmentsByModule(userId)
     const assignedIds = Array.from(byModule.keys()).map(
       (id) => new Types.ObjectId(id)
     )
 
-    // 2) Fetch modules the user can see
     const modules = await Module.find({
       $or: [
         { accessPolicy: 'open' },
-        { _id: { $in: assignedIds } }, // include assignment-only modules
+        { _id: { $in: assignedIds } },
       ],
     })
       .select(
@@ -332,36 +211,14 @@ const getAvailableModules = async (req: Request, res: Response) => {
       .sort({ createdAt: -1 })
       .lean()
 
-    // 3) Decorate with meta info for the client
-    const items = modules.map((m: any) => {
-      const a = byModule.get(String(m._id))
-      const source: Array<'open' | 'assigned'> = []
-      if (m.accessPolicy === 'open') source.push('open')
-      if (a) source.push('assigned')
-
-      let canStart = false
-      let canStartReason: 'ok' | 'requires_assignment' = 'ok'
-
-      if (m.accessPolicy === 'open') {
-        canStart = true
-      } else {
-        // assigned
-        canStart = !!a
-        if (!a) canStartReason = 'requires_assignment'
-      }
-
-      return {
-        module: m,
-        meta: {
-          canStart,
-          canStartReason,
-          source,
-          activeAssignmentId: a?._id?.toString(),
-          assignmentStatus: a?.status,
-          dueAt: a?.dueAt,
-        },
-      }
-    })
+    const items = modules.map((m) => ({
+      module: m,
+      meta: resolveModuleAccessMeta(
+        m.accessPolicy,
+        byModule.get(String(m._id)),
+        true
+      ),
+    }))
 
     res.status(200).json({ success: true, modules: items })
   } catch (error) {

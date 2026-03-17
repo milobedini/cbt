@@ -19,6 +19,8 @@ const ScoreBandSchema = new Schema<IScoreBand>(
   { collection: 'scoreBands' }
 )
 
+ScoreBandSchema.index({ module: 1, min: 1, max: 1 })
+
 const ScoreBand = mongoose.model<IScoreBand>('ScoreBand', ScoreBandSchema)
 export default ScoreBand
 export { IScoreBand }

@@ -14,9 +14,6 @@ const generateTokenAndSetCookie = (res: Response, userId: string) => {
   const token = sign({ userId }, getJwtSecret(), { expiresIn: '7d' })
 
   const expiryInSeconds = 7 * 24 * 60 * 60 // 7 days in seconds
-  if (isNaN(expiryInSeconds)) {
-    throw new Error('Invalid JWT_EXPIRY value')
-  }
 
   res.cookie('token', token, {
     httpOnly: true,

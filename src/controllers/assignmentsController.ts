@@ -5,16 +5,10 @@ import User from '../models/userModel'
 import Module from '../models/moduleModel'
 import { errorHandler } from '../utils/errorHandler'
 import { computePercentCompleteForAttempt } from './attemptsController'
-import { isAdmin, isVerifiedTherapist } from '../utils/roles'
 
 export const createAssignment = async (req: Request, res: Response) => {
   try {
     const therapistId = req.user?._id as Types.ObjectId
-    const me = await User.findById(therapistId)
-    if (!me || (!isAdmin(me) && !isVerifiedTherapist(me))) {
-      res.status(403).json({ success: false, message: 'Access denied' })
-      return
-    }
 
     const { userId, moduleId, dueAt, notes, recurrence } = req.body
     const mod = await Module.findById(moduleId)
@@ -70,11 +64,6 @@ export const listAssignmentsForTherapist = async (
 ) => {
   try {
     const therapistId = req.user?._id as Types.ObjectId
-    const me = await User.findById(therapistId)
-    if (!me || (!isAdmin(me) && !isVerifiedTherapist(me))) {
-      res.status(403).json({ success: false, message: 'Access denied' })
-      return
-    }
 
     const items = await ModuleAssignment.find({
       therapist: therapistId,
@@ -91,18 +80,31 @@ export const listAssignmentsForTherapist = async (
   }
 }
 
+const VALID_ASSIGNMENT_STATUSES = [
+  'assigned',
+  'in_progress',
+  'completed',
+  'cancelled',
+] as const
+
 export const updateAssignmentStatus = async (req: Request, res: Response) => {
   try {
     const therapistId = req.user?._id as Types.ObjectId
-    const me = await User.findById(therapistId)
-    if (!me || (!isAdmin(me) && !isVerifiedTherapist(me))) {
-      res.status(403).json({ success: false, message: 'Access denied' })
-      return
-    }
 
     const { assignmentId } = req.params
-    const { status } = req.body as {
-      status: 'assigned' | 'in_progress' | 'completed' | 'cancelled'
+    const { status } = req.body as { status: string }
+
+    if (
+      !status ||
+      !VALID_ASSIGNMENT_STATUSES.includes(
+        status as (typeof VALID_ASSIGNMENT_STATUSES)[number]
+      )
+    ) {
+      res.status(400).json({
+        success: false,
+        message: `status must be one of: ${VALID_ASSIGNMENT_STATUSES.join(', ')}`,
+      })
+      return
     }
 
     const asg = await ModuleAssignment.findOneAndUpdate(
@@ -190,11 +192,6 @@ export const getMyAssignments = async (req: Request, res: Response) => {
 export const removeAssignment = async (req: Request, res: Response) => {
   try {
     const therapistId = req.user?._id as Types.ObjectId
-    const me = await User.findById(therapistId)
-    if (!me || (!isAdmin(me) && !isVerifiedTherapist(me))) {
-      res.status(403).json({ success: false, message: 'Access denied' })
-      return
-    }
 
     const { assignmentId } = req.params
 

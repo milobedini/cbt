@@ -27,6 +27,8 @@ const QuestionSchema = new Schema<IQuestion>(
   { collection: 'questions' }
 )
 
+QuestionSchema.index({ module: 1, order: 1 })
+
 const Question = mongoose.model<IQuestion>('Question', QuestionSchema)
 export default Question
 export { IQuestion, IChoice }

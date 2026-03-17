@@ -7,387 +7,30 @@ import User, { UserRole } from '../models/userModel'
 import ModuleAttempt from '../models/moduleAttemptModel'
 import ModuleAssignment from '../models/moduleAssignmentModel'
 import { errorHandler } from '../utils/errorHandler'
-import { DateTime } from 'luxon'
-import { SLOT_END_HOUR } from '../shared-types/constants'
-import { SLOT_START_HOUR } from '../shared-types/constants'
-import { SLOT_STEP_HOURS } from '../shared-types/constants'
+import { isAdmin, isVerifiedTherapist } from '../utils/roles'
 import {
-  isAdmin,
-  isVerifiedTherapist,
-} from '../utils/roles'
+  computeWeekStart,
+  findActiveAssignment,
+  therapistCanSeePatient,
+  makeModuleSnapshot,
+  scoreToBand,
+  decorateAttemptItems,
+  enrichAnswersWithChoiceMetaFromSnapshot,
+  enrichAnswersWithChoiceMetaFromDB,
+} from '../utils/attemptUtils'
+import {
+  sanitizeDiaryEntries,
+  decorateDiaryDetail,
+  computePercentCompleteForAttempt,
+  DiaryEntryInput,
+} from '../utils/diaryUtils'
 
-// ---- Utils ----
-const LONDON_TZ = 'Europe/London'
-
-// Monday 00:00 London time, returned as UTC JS Date
-function computeWeekStart(d: Date): Date {
-  const dt = DateTime.fromJSDate(d, { zone: LONDON_TZ })
-  // Luxon startOf('week') already returns Monday (ISO standard)
-  const mondayStart = dt.startOf('week')
-  return mondayStart.toUTC().toJSDate()
-}
-
-// active assignment finder (assigned or in_progress)
-async function findActiveAssignment(
-  userId: Types.ObjectId,
-  moduleId: Types.ObjectId,
-  therapistId?: Types.ObjectId
-) {
-  const match: any = {
-    user: userId,
-    module: moduleId,
-    status: { $in: ['assigned', 'in_progress'] },
-  }
-  if (therapistId) match.therapist = therapistId
-  return ModuleAssignment.findOne(match)
-    .sort({ dueAt: 1, createdAt: -1 })
-    .lean()
-}
-
-// Does therapist have access to this patient?
-async function therapistCanSeePatient(
-  therapistId: Types.ObjectId,
-  patientId: Types.ObjectId
-): Promise<boolean> {
-  const patient = await User.findById(patientId, 'therapist')
-  if (!patient) return false
-  return patient.therapist?.toString() === therapistId.toString()
-}
-
-// Snapshot questions so history survives edits
-async function makeModuleSnapshot(moduleId: Types.ObjectId) {
-  const mod = await Module.findById(moduleId, 'title disclaimer type program')
-  if (!mod) return null
-  const questions = await Question.find({ module: moduleId })
-    .sort({ order: 1 })
-    .select('_id text choices')
-    .lean()
-  return {
-    title: mod.title,
-    disclaimer: mod.disclaimer,
-    questions:
-      questions?.map((q) => ({
-        _id: q._id,
-        text: q.text,
-        choices:
-          q.choices?.map((c) => ({ text: c.text, score: c.score })) || [],
-      })) || [],
-  }
-}
-
-async function scoreToBand(moduleId: Types.ObjectId, totalScore: number) {
-  // Inclusive bounds. If overlapping bands exist, the first match wins.
-  const band = await ScoreBand.findOne({
-    module: moduleId,
-    min: { $lte: totalScore },
-    max: { $gte: totalScore },
-  }).lean()
-  return band?.label || null
-}
-
-function decorateAttemptItems(attempt: any) {
-  const snapQs = attempt?.moduleSnapshot?.questions || []
-  const ansMap = new Map<string, any>(
-    (attempt.answers || []).map((a: any) => [String(a.question), a])
-  )
-
-  const items = snapQs.map((q: any, idx: number) => {
-    const a = ansMap.get(String(q._id))
-
-    // derive when missing
-    let chosenIndex = a?.chosenIndex
-    let chosenText = a?.chosenText
-    if ((chosenIndex == null || chosenText == null) && a?.chosenScore != null) {
-      const idxByScore = (q.choices || []).findIndex(
-        (c: any) => c.score === a.chosenScore
-      )
-      if (idxByScore >= 0) {
-        if (chosenIndex == null) chosenIndex = idxByScore
-        if (chosenText == null) chosenText = q.choices[idxByScore]?.text
-      }
-    }
-
-    return {
-      order: idx + 1,
-      questionId: String(q._id),
-      questionText: q.text,
-      choices: q.choices, // [{ text, score }]
-      chosenScore: a?.chosenScore ?? null,
-      chosenIndex: chosenIndex ?? null,
-      chosenText: chosenText ?? null,
-    }
-  })
-
-  const answeredCount = items.filter((i: any) => i.chosenScore != null).length
-  const totalQuestions = items.length
-  const percentComplete = totalQuestions
-    ? Math.round((answeredCount / totalQuestions) * 100)
-    : 0
-
-  return { items, answeredCount, totalQuestions, percentComplete }
-}
-
-function enrichAnswersWithChoiceMetaFromSnapshot(attempt: any) {
-  if (!attempt?.moduleSnapshot?.questions || !Array.isArray(attempt.answers))
-    return
-
-  const qMap = new Map<string, { choices: { text: string; score: number }[] }>(
-    attempt.moduleSnapshot.questions.map((q: any) => [
-      String(q._id),
-      { choices: q.choices || [] },
-    ])
-  )
-
-  attempt.answers = attempt.answers.map((a: any) => {
-    const qInfo = qMap.get(String(a.question))
-    if (!qInfo) return a
-
-    let chosenIndex: number | undefined = a.chosenIndex
-    if (chosenIndex == null) {
-      chosenIndex = qInfo.choices.findIndex((c) => c.score === a.chosenScore)
-      if (chosenIndex < 0) chosenIndex = undefined
-    }
-
-    const chosenText =
-      chosenIndex != null &&
-      chosenIndex >= 0 &&
-      chosenIndex < qInfo.choices.length
-        ? qInfo.choices[chosenIndex].text
-        : a.chosenText // keep any existing
-
-    return {
-      ...a,
-      ...(chosenIndex != null ? { chosenIndex } : {}),
-      ...(chosenText ? { chosenText } : {}),
-    }
-  })
-}
-
-export function computeDiaryPercentComplete(
-  attempt: any,
-  now = new Date()
-): number {
-  try {
-    const entries = Array.isArray(attempt?.diaryEntries)
-      ? attempt.diaryEntries
-      : []
-    if (!entries.length) return 0
-
-    // Anchor the 7-day window:
-    // - if attempt.weekStart exists (you set it at submit), use that
-    // - else compute Monday 00:00 London for "now"
-    const anchor =
-      attempt.weekStart && !Number.isNaN(new Date(attempt.weekStart).getTime())
-        ? new Date(attempt.weekStart)
-        : computeWeekStart(now) // your existing Luxon-based function
-
-    const weekStart = DateTime.fromJSDate(anchor, { zone: LONDON_TZ }).startOf(
-      'day'
-    )
-    const weekEnd = weekStart.plus({ days: 7 })
-
-    // slot grid
-    const slotsPerDay = Math.floor(
-      (SLOT_END_HOUR - SLOT_START_HOUR) / SLOT_STEP_HOURS
-    )
-    if (slotsPerDay <= 0) return 0
-    const totalSlots = 7 * slotsPerDay
-
-    const filled = new Set<string>()
-
-    for (const raw of entries) {
-      const at = new Date(raw.at)
-      if (Number.isNaN(at.getTime())) continue
-
-      // Bucket by London wall-clock time (so DST is handled correctly)
-      const dt = DateTime.fromJSDate(at, { zone: LONDON_TZ })
-      if (dt < weekStart || dt >= weekEnd) continue
-
-      // A slot is filled if any field present (same as FE)
-      const hasAny =
-        (raw.activity && raw.activity.trim().length > 0) ||
-        typeof raw.mood === 'number' ||
-        typeof raw.achievement === 'number' ||
-        typeof raw.closeness === 'number' ||
-        typeof raw.enjoyment === 'number'
-      if (!hasAny) continue
-
-      const hour = dt.hour // 0..23 in London
-      if (hour < SLOT_START_HOUR || hour >= SLOT_END_HOUR) continue
-
-      const dayIndex = Math.floor(dt.diff(weekStart, 'days').days) // 0..6
-      const slotIndex = Math.floor((hour - SLOT_START_HOUR) / SLOT_STEP_HOURS) // 0..slotsPerDay-1
-
-      if (dayIndex < 0 || dayIndex >= 7) continue
-      if (slotIndex < 0 || slotIndex >= slotsPerDay) continue
-
-      // Uniqueness by (day, slot) – label not required
-      filled.add(`${dayIndex}|${slotIndex}`)
-    }
-
-    return Math.round((filled.size / totalSlots) * 100)
-  } catch {
-    return 0
-  }
-}
-export function computePercentCompleteForAttempt(attempt: any): number {
-  if (!attempt) return 0
-  if (attempt.moduleType === 'questionnaire') {
-    const total = attempt?.moduleSnapshot?.questions?.length || 0
-    if (!total) return 0
-    const answered = (attempt.answers || []).filter(
-      (a: any) => a?.chosenScore != null
-    ).length
-    return Math.round((answered / total) * 100)
-  }
-  if (attempt.moduleType === 'activity_diary') {
-    return computeDiaryPercentComplete(attempt)
-  }
-  return 0
-}
-// Rare fallback if there’s no snapshot (shouldn’t happen with your start flow)
-async function enrichAnswersWithChoiceMetaFromDB(attempt: any) {
-  if (!Array.isArray(attempt.answers)) return
-
-  const qIds = attempt.answers.map(
-    (a: any) => new mongoose.Types.ObjectId(a.question)
-  )
-  const qs = await Question.find({ _id: { $in: qIds }, module: attempt.module })
-    .select('_id choices')
-    .lean()
-
-  const qMap = new Map<string, { choices: { text: string; score: number }[] }>(
-    qs.map((q) => [String(q._id), { choices: q.choices || [] }])
-  )
-
-  attempt.answers = attempt.answers.map((a: any) => {
-    const qInfo = qMap.get(String(a.question))
-    if (!qInfo) return a
-
-    let chosenIndex: number | undefined = a.chosenIndex
-    if (chosenIndex == null) {
-      chosenIndex = qInfo.choices.findIndex((c) => c.score === a.chosenScore)
-      if (chosenIndex < 0) chosenIndex = undefined
-    }
-
-    const chosenText =
-      chosenIndex != null &&
-      chosenIndex >= 0 &&
-      chosenIndex < qInfo.choices.length
-        ? qInfo.choices[chosenIndex].text
-        : a.chosenText
-
-    return {
-      ...a,
-      ...(chosenIndex != null ? { chosenIndex } : {}),
-      ...(chosenText ? { chosenText } : {}),
-    }
-  })
-}
-
-type DiaryEntryInput = {
-  at: string | Date
-  label?: string
-  activity?: string
-  mood?: number // 0..100
-  achievement?: number // 0..10
-  closeness?: number // 0..10
-  enjoyment?: number // 0..10
-}
-
-function clampInt(n: any, min: number, max: number) {
-  if (typeof n !== 'number' || Number.isNaN(n)) return undefined
-  return Math.min(max, Math.max(min, Math.round(n)))
-}
-
-function sanitizeDiaryEntries(list: DiaryEntryInput[] | undefined): any[] {
-  if (!Array.isArray(list)) return []
-  return list
-    .map((e) => {
-      const at = new Date(e.at as any)
-      if (isNaN(at.getTime())) return null
-
-      const label =
-        typeof e.label === 'string' ? e.label.trim().slice(0, 100) : undefined
-
-      // activity can be empty; trim+cap
-      const activity =
-        typeof e.activity === 'string' ? e.activity.trim().slice(0, 1000) : ''
-
-      const mood = clampInt(e.mood, 0, 100)
-      const achievement = clampInt(e.achievement, 0, 10)
-      const closeness = clampInt(e.closeness, 0, 10)
-      const enjoyment = clampInt(e.enjoyment, 0, 10)
-
-      return {
-        at,
-        ...(label ? { label } : {}),
-        activity,
-        ...(mood != null ? { mood } : {}),
-        ...(achievement != null ? { achievement } : {}),
-        ...(closeness != null ? { closeness } : {}),
-        ...(enjoyment != null ? { enjoyment } : {}),
-      }
-    })
-    .filter(Boolean) as any[]
-}
-
-function decorateDiaryDetail(attempt: any) {
-  const entries = Array.isArray(attempt.diaryEntries)
-    ? [...attempt.diaryEntries]
-    : []
-
-  // sort by time ASC
-  entries.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
-
-  // group by London calendar day
-  const byDay = new Map<string, any[]>()
-  for (const e of entries) {
-    const dt = DateTime.fromJSDate(new Date(e.at), { zone: LONDON_TZ })
-    // toISODate() can be null; fall back to a deterministic format
-    const key: string = dt.toISODate() ?? dt.toFormat('yyyy-LL-dd')
-    if (!byDay.has(key)) byDay.set(key, [])
-    byDay.get(key)!.push(e)
-  }
-
-  const avg = (arr: number[]) =>
-    arr.length
-      ? Math.round(
-          (arr.reduce((s, n) => s + n, 0) / arr.length + Number.EPSILON) * 10
-        ) / 10
-      : null
-
-  const days = Array.from(byDay.entries()).map(([dateISO, items]) => {
-    const nums = (k: 'mood' | 'achievement' | 'closeness' | 'enjoyment') =>
-      items.map((x: any) => x[k]).filter((x: any) => typeof x === 'number')
-    return {
-      dateISO,
-      entries: items,
-      avgMood: avg(nums('mood')),
-      avgAchievement: avg(nums('achievement')),
-      avgCloseness: avg(nums('closeness')),
-      avgEnjoyment: avg(nums('enjoyment')),
-    }
-  })
-
-  const all = (k: 'mood' | 'achievement' | 'closeness' | 'enjoyment') =>
-    entries.map((x: any) => x[k]).filter((x: any) => typeof x === 'number')
-
-  const totals = {
-    count: entries.length,
-    avgMood: avg(all('mood')),
-    avgAchievement: avg(all('achievement')),
-    avgCloseness: avg(all('closeness')),
-    avgEnjoyment: avg(all('enjoyment')),
-  }
-
-  return { days, totals }
-}
+// Re-export for consumers that import from this file
+export { computePercentCompleteForAttempt }
 
 // ---- Controllers ----
 
 // POST /modules/:moduleId/attempts
-// Patient starts an attempt
 export const startAttempt = async (req: Request, res: Response) => {
   try {
     const userId = req.user?._id as Types.ObjectId
@@ -406,14 +49,14 @@ export const startAttempt = async (req: Request, res: Response) => {
     }
 
     // link (or find) assignment if provided/required
-    let assignment: any = null
+    let assignment: Awaited<ReturnType<typeof findActiveAssignment>> = null
     if (assignmentId) {
       assignment = await ModuleAssignment.findOne({
         _id: assignmentId,
         user: userId,
         module: mod._id,
         status: { $in: ['assigned', 'in_progress'] },
-      })
+      }).lean()
       if (!assignment) {
         res.status(400).json({
           success: false,
@@ -432,7 +75,6 @@ export const startAttempt = async (req: Request, res: Response) => {
       }
     }
 
-    // therapist snapshot
     const me = await User.findById(userId, 'therapist')
     const therapistId = me?.therapist as Types.ObjectId | undefined
 
@@ -461,11 +103,10 @@ export const startAttempt = async (req: Request, res: Response) => {
       startedAt: new Date(),
       lastInteractionAt: new Date(),
       iteration,
-      dueAt: assignment?.dueAt, // carry over due date
+      dueAt: assignment?.dueAt,
       moduleSnapshot: snapshot,
     })
 
-    // If starting from an assignment, mark it in progress
     if (assignment && assignment.status === 'assigned') {
       await ModuleAssignment.updateOne(
         { _id: assignment._id },
@@ -480,7 +121,6 @@ export const startAttempt = async (req: Request, res: Response) => {
 }
 
 // PATCH /attempts/:attemptId
-// Save progress (answers partial, notes). Does not submit.
 export const saveProgress = async (req: Request, res: Response) => {
   try {
     const userId = req.user?._id as Types.ObjectId
@@ -522,18 +162,18 @@ export const saveProgress = async (req: Request, res: Response) => {
           Array.isArray(attempt.diaryEntries) &&
           attempt.diaryEntries.length
         ) {
-          // merge by timestamp(ms)+label
-          const key = (e: any) => `${new Date(e.at).getTime()}|${e.label || ''}`
+          const key = (e: Record<string, unknown>) =>
+            `${new Date(e.at as string).getTime()}|${(e.label as string) || ''}`
           const existing = new Map(
-            attempt.diaryEntries.map((e: any) => [key(e), e])
+            (attempt.diaryEntries as unknown as Record<string, unknown>[]).map((e) => [key(e), e])
           )
           for (const e of sanitized) existing.set(key(e), e)
           attempt.diaryEntries = Array.from(existing.values()).sort(
-            (a: any, b: any) =>
-              new Date(a.at).getTime() - new Date(b.at).getTime()
-          )
+            (a, b) =>
+              new Date(a.at as string).getTime() - new Date(b.at as string).getTime()
+          ) as unknown as typeof attempt.diaryEntries
         } else {
-          attempt.diaryEntries = sanitized
+          attempt.diaryEntries = sanitized as unknown as typeof attempt.diaryEntries
         }
       }
 
@@ -545,61 +185,57 @@ export const saveProgress = async (req: Request, res: Response) => {
     }
 
     if (Array.isArray(answers)) {
-      // Optional: validate question ids belong to this module
-      if (Array.isArray(answers)) {
-        const qIds = answers.map((a) => new mongoose.Types.ObjectId(a.question))
-        const validQCount = await Question.countDocuments({
-          _id: { $in: qIds },
-          module: attempt.module,
+      const qIds = answers.map((a) => new mongoose.Types.ObjectId(a.question))
+      const validQCount = await Question.countDocuments({
+        _id: { $in: qIds },
+        module: attempt.module,
+      })
+      if (validQCount !== qIds.length) {
+        res.status(400).json({
+          success: false,
+          message: 'One or more answers reference invalid questions',
         })
-        if (validQCount !== qIds.length) {
-          res.status(400).json({
-            success: false,
-            message: 'One or more answers reference invalid questions',
-          })
-          return
-        }
-
-        const qs = await Question.find({
-          _id: { $in: qIds },
-          module: attempt.module,
-        })
-          .select('_id choices')
-          .lean()
-
-        const qMap = new Map<
-          string,
-          { choices: { text: string; score: number }[] }
-        >(qs.map((q) => [String(q._id), { choices: q.choices || [] }]))
-
-        attempt.answers = answers.map((a) => {
-          const qInfo = qMap.get(String(a.question))
-          let chosenIndex: number | undefined = a.chosenIndex
-          let chosenText: string | undefined = a.chosenText
-
-          if (qInfo) {
-            const { choices } = qInfo
-            if (chosenIndex == null) {
-              const idx = choices.findIndex((c) => c.score === a.chosenScore)
-              if (idx >= 0) chosenIndex = idx
-            }
-            if (
-              chosenText == null &&
-              chosenIndex != null &&
-              chosenIndex >= 0 &&
-              chosenIndex < choices.length
-            ) {
-              chosenText = choices[chosenIndex].text
-            }
-          }
-          return {
-            question: a.question,
-            chosenScore: a.chosenScore,
-            ...(chosenIndex != null ? { chosenIndex } : {}),
-            ...(chosenText ? { chosenText } : {}),
-          }
-        }) as any
+        return
       }
+
+      const qs = await Question.find({
+        _id: { $in: qIds },
+        module: attempt.module,
+      })
+        .select('_id choices')
+        .lean()
+
+      const qMap = new Map(
+        qs.map((q) => [String(q._id), { choices: q.choices || [] }])
+      )
+
+      attempt.answers = answers.map((a) => {
+        const qInfo = qMap.get(String(a.question))
+        let chosenIndex: number | undefined = a.chosenIndex
+        let chosenText: string | undefined = a.chosenText
+
+        if (qInfo) {
+          const { choices } = qInfo
+          if (chosenIndex == null) {
+            const idx = choices.findIndex((c) => c.score === a.chosenScore)
+            if (idx >= 0) chosenIndex = idx
+          }
+          if (
+            chosenText == null &&
+            chosenIndex != null &&
+            chosenIndex >= 0 &&
+            chosenIndex < choices.length
+          ) {
+            chosenText = choices[chosenIndex].text
+          }
+        }
+        return {
+          question: a.question,
+          chosenScore: a.chosenScore,
+          ...(chosenIndex != null ? { chosenIndex } : {}),
+          ...(chosenText ? { chosenText } : {}),
+        }
+      }) as unknown as typeof attempt.answers
     }
     if (typeof userNote === 'string') attempt.userNote = userNote
 
@@ -613,12 +249,13 @@ export const saveProgress = async (req: Request, res: Response) => {
 }
 
 // POST /attempts/:attemptId/submit
-// Finalize, compute score, band, weekStart, duration
 export const submitAttempt = async (req: Request, res: Response) => {
   try {
     const userId = req.user?._id as Types.ObjectId
     const { attemptId } = req.params
-    let { assignmentId } = (req.body as { assignmentId?: string }) || {}
+    const { assignmentId: providedAssignmentId } =
+      (req.body as { assignmentId?: string }) || {}
+    let assignmentId = providedAssignmentId
 
     const attempt = await ModuleAttempt.findById(attemptId)
     if (!attempt) {
@@ -637,7 +274,6 @@ export const submitAttempt = async (req: Request, res: Response) => {
     const now = new Date()
 
     if (attempt.moduleType === 'activity_diary') {
-      // No questionnaire scoring/bands; just finalize + normalize weekStart
       attempt.weekStart = computeWeekStart(now)
       attempt.completedAt = now
       attempt.lastInteractionAt = now
@@ -649,12 +285,10 @@ export const submitAttempt = async (req: Request, res: Response) => {
           )
         : undefined
 
-      // refresh therapist snapshot at submit
       const me = await User.findById(userId, 'therapist')
       attempt.therapist = me?.therapist
       await attempt.save()
 
-      // Assignment sync
       if (!assignmentId) {
         const possible = await findActiveAssignment(
           attempt.user as Types.ObjectId,
@@ -674,16 +308,14 @@ export const submitAttempt = async (req: Request, res: Response) => {
       return
     }
 
-    // For questionnaires: ensure you have answers to module questions (optional strictness)
     if (attempt.moduleType === 'questionnaire') {
       const questions = await Question.find({ module: attempt.module })
         .select('_id')
         .lean()
       const needed = new Set(questions.map((q) => q._id.toString()))
       const got = new Set(
-        (attempt.answers || []).map((a) => (a.question as any).toString())
+        (attempt.answers || []).map((a) => (a.question as unknown as Types.ObjectId).toString())
       )
-      // If you want strictly all answered:
       if (needed.size > 0 && needed.size !== got.size) {
         res.status(400).json({
           success: false,
@@ -695,14 +327,14 @@ export const submitAttempt = async (req: Request, res: Response) => {
 
     if (attempt.answers?.length) {
       if (attempt.moduleSnapshot?.questions?.length) {
-        enrichAnswersWithChoiceMetaFromSnapshot(attempt)
+        enrichAnswersWithChoiceMetaFromSnapshot(attempt as unknown as Parameters<typeof enrichAnswersWithChoiceMetaFromSnapshot>[0])
       } else {
-        await enrichAnswersWithChoiceMetaFromDB(attempt)
+        await enrichAnswersWithChoiceMetaFromDB(attempt as unknown as Parameters<typeof enrichAnswersWithChoiceMetaFromDB>[0])
       }
     }
 
     const totalScore = (attempt.answers || []).reduce(
-      (sum, a: any) => sum + (a.chosenScore || 0),
+      (sum, a) => sum + ((a as unknown as { chosenScore: number }).chosenScore || 0),
       0
     )
     const band =
@@ -723,20 +355,17 @@ export const submitAttempt = async (req: Request, res: Response) => {
         )
       : undefined
 
-    // Re-denormalize therapist at submit (in case it changed during attempt)
     const me = await User.findById(userId, 'therapist')
     attempt.therapist = me?.therapist
 
     await attempt.save()
 
-    // Optional: sync assignment
     if (!assignmentId) {
       const possible = await findActiveAssignment(
         attempt.user as Types.ObjectId,
         attempt.module as Types.ObjectId,
         attempt.therapist as Types.ObjectId
       )
-      // Auto find active assignment, if not explicitly provided
       if (possible) assignmentId = String(possible._id)
     }
     if (assignmentId) {
@@ -776,7 +405,7 @@ export const getMyAttempts = async (req: Request, res: Response) => {
     const lim = Math.min(parseInt(limit, 10) || 20, 100)
 
     if (status === 'active') {
-      const match: any = { user: userId, status: 'started' }
+      const match: Record<string, unknown> = { user: userId, status: 'started' }
       if (moduleId) match.module = new Types.ObjectId(String(moduleId))
 
       const rows = await ModuleAttempt.find(match)
@@ -796,7 +425,6 @@ export const getMyAttempts = async (req: Request, res: Response) => {
             'status',
             'answers',
             'moduleSnapshot.questions',
-            // ⬇️ needed for progress
             'diaryEntries.at',
             'diaryEntries.activity',
             'diaryEntries.mood',
@@ -808,21 +436,20 @@ export const getMyAttempts = async (req: Request, res: Response) => {
         .lean()
         .populate('module', 'title')
 
-      const attempts = rows.map((a: any) => ({
+      const attempts = rows.map((a) => ({
         ...a,
-        percentComplete: computePercentCompleteForAttempt(a),
+        percentComplete: computePercentCompleteForAttempt(a as Parameters<typeof computePercentCompleteForAttempt>[0]),
       }))
 
       res.status(200).json({ success: true, attempts, nextCursor: null })
       return
     }
 
-    // Default: submitted (with score band join)
-    const match: any = { user: userId, status: 'submitted' }
+    const match: Record<string, unknown> = { user: userId, status: 'submitted' }
     if (moduleId) match.module = new Types.ObjectId(String(moduleId))
     if (cursor) match.completedAt = { $lt: new Date(String(cursor)) }
 
-    const pipeline = [
+    const pipeline: mongoose.PipelineStage[] = [
       { $match: match },
       { $sort: { completedAt: -1, _id: -1 } },
       { $limit: lim },
@@ -849,22 +476,21 @@ export const getMyAttempts = async (req: Request, res: Response) => {
           as: 'band',
         },
       },
-      // 👇 Add this block to fetch module details
       {
         $lookup: {
-          from: 'modules', // collection name, check your schema
+          from: 'modules',
           localField: 'module',
           foreignField: '_id',
           as: 'module',
         },
       },
-      { $unwind: '$module' }, // flatten from array → object
+      { $unwind: '$module' },
       { $addFields: { band: { $arrayElemAt: ['$band', 0] } } },
       { $addFields: { lastInteractionAt: '$completedAt' } },
       {
         $project: {
           _id: 1,
-          module: { _id: 1, title: 1 }, // keep only what you want
+          module: { _id: 1, title: 1 },
           program: 1,
           moduleType: 1,
           totalScore: 1,
@@ -874,17 +500,16 @@ export const getMyAttempts = async (req: Request, res: Response) => {
           weekStart: 1,
           iteration: 1,
           band: 1,
-          status: 1, // ✅ include status explicitly
+          status: 1,
         },
       },
     ]
 
-    const rows = await (ModuleAttempt as any).aggregate(pipeline)
-    const attempts = rows.map((a: any) => ({
+    const rows = await ModuleAttempt.aggregate(pipeline)
+    const attempts = rows.map((a) => ({
       ...a,
       percentComplete: 100,
     }))
-    // simple time cursor (ISO). If you want 2-field cursor, we can upgrade later.
     const nextCursor = null
     res.status(200).json({ success: true, attempts, nextCursor })
   } catch (error) {
@@ -893,7 +518,6 @@ export const getMyAttempts = async (req: Request, res: Response) => {
 }
 
 // GET /therapist/attempts/latest?limit=200
-// Therapist dashboard: latest submitted attempt per (patient,module)
 export const getTherapistLatest = async (req: Request, res: Response) => {
   try {
     const therapistId = req.user?._id as Types.ObjectId
@@ -910,7 +534,7 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
     const { limit = '200' } = req.query as { limit?: string }
     const lim = Math.min(parseInt(limit, 10) || 200, 500)
 
-    const rows = await (ModuleAttempt as any).aggregate([
+    const rows = await ModuleAttempt.aggregate([
       { $match: { therapist: therapistId, status: 'submitted' } },
       { $sort: { completedAt: -1, _id: -1 } },
       {
@@ -920,8 +544,6 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
         },
       },
       { $replaceWith: '$doc' },
-
-      // join score band by (module, totalScore)
       {
         $lookup: {
           from: 'scoreBands',
@@ -946,8 +568,6 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
         },
       },
       { $addFields: { band: { $arrayElemAt: ['$band', 0] } } },
-
-      // join user + module
       {
         $lookup: {
           from: 'users-data',
@@ -970,7 +590,6 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
           module: { $arrayElemAt: ['$module', 0] },
         },
       },
-
       {
         $project: {
           _id: 1,
@@ -986,7 +605,7 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
       },
       { $limit: lim },
     ])
-    const decorated = rows.map((r: any) => ({
+    const decorated = rows.map((r) => ({
       ...r,
       percentComplete: 100,
     }))
@@ -997,7 +616,6 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
 }
 
 // GET /therapist/patients/:patientId/modules/:moduleId/attempts
-// Therapist: timeline for one patient
 export const getPatientModuleTimeline = async (req: Request, res: Response) => {
   try {
     const therapistId = req.user?._id as Types.ObjectId
@@ -1016,7 +634,7 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
     } = req.query as {
       limit?: string
       cursor?: string
-      status?: string // 'submitted' | 'active' | 'started' | 'abandoned' | csv
+      status?: string
       moduleId?: string
     }
 
@@ -1031,40 +649,32 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
       return
     }
 
-    // ----- Status normalization -----
-    // Default to completed timeline
     const norm = (status ?? 'submitted').toString().trim().toLowerCase()
-
-    // Allow csv: status=started,abandoned ; and a friendly alias: active -> started
     const rawStatuses =
       norm === 'all'
-        ? [] // no filter
+        ? []
         : norm === 'active'
-        ? ['started']
-        : norm
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
+          ? ['started']
+          : norm
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
 
-    const findQuery: Record<string, any> = { user: patientId }
+    const findQuery: Record<string, unknown> = { user: patientId }
     if (moduleId) findQuery.module = moduleId
 
     if (rawStatuses.length > 0) {
       findQuery.status =
         rawStatuses.length === 1 ? rawStatuses[0] : { $in: rawStatuses }
-    } else {
-      // 'all' -> no status filter; otherwise default already applied above
     }
 
-    // Choose sort & cursor field based on status group
     const isSubmittedView =
-      rawStatuses.length === 0 // 'all'
+      rawStatuses.length === 0
         ? false
         : rawStatuses.length === 1 && rawStatuses[0] === 'submitted'
 
     const sortField = isSubmittedView ? 'completedAt' : 'lastInteractionAt'
 
-    // Cursor (ISO date string) works against the chosen sort field
     if (cursor) {
       const cursorDate = new Date(cursor)
       if (!isNaN(cursorDate.getTime())) {
@@ -1075,8 +685,8 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
     const pageSize = Math.min(Math.max(Number(limit) || 20, 1), 100)
 
     const attempts = await ModuleAttempt.find(findQuery)
-      .sort({ [sortField]: -1 }) // newest first by chosen field
-      .limit(pageSize + 1) // fetch one extra to detect next page
+      .sort({ [sortField]: -1 })
+      .limit(pageSize + 1)
       .select(
         [
           '_id',
@@ -1095,7 +705,6 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
           'status',
           'answers',
           'moduleSnapshot.questions',
-          // ⬇️ needed for progress
           'diaryEntries.at',
           'diaryEntries.activity',
           'diaryEntries.mood',
@@ -1115,10 +724,10 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
       attempts.length = pageSize
     }
 
-    const rows = attempts.map((a: any) => ({
+    const rows = attempts.map((a) => ({
       ...a,
       percentComplete:
-        a.status === 'submitted' ? 100 : computePercentCompleteForAttempt(a),
+        a.status === 'submitted' ? 100 : computePercentCompleteForAttempt(a as Parameters<typeof computePercentCompleteForAttempt>[0]),
     }))
 
     res.status(200).json({
@@ -1144,7 +753,6 @@ export const getMyAttemptDetail = async (req: Request, res: Response) => {
     const attempt = await ModuleAttempt.findById(attemptId).lean()
     if (!attempt) {
       res.status(404).json({ success: false, message: 'Attempt not found' })
-
       return
     }
 
@@ -1153,8 +761,7 @@ export const getMyAttemptDetail = async (req: Request, res: Response) => {
       return
     }
 
-    // Optionally join band for questionnaires when missing (self-view wants full context)
-    let band: any = undefined
+    let band = undefined
     if (attempt.moduleType === 'questionnaire' && attempt.totalScore != null) {
       band = await ScoreBand.findOne({
         module: attempt.module,
@@ -1165,11 +772,11 @@ export const getMyAttemptDetail = async (req: Request, res: Response) => {
         .lean()
     }
 
-    const payload: any = { ...attempt, band }
+    const payload: Record<string, unknown> = { ...attempt, band }
     if (attempt.moduleType === 'questionnaire') {
-      payload.detail = decorateAttemptItems(attempt)
+      payload.detail = decorateAttemptItems(attempt as unknown as Parameters<typeof decorateAttemptItems>[0])
     } else if (attempt.moduleType === 'activity_diary') {
-      payload.diary = decorateDiaryDetail(attempt)
+      payload.diary = decorateDiaryDetail(attempt as unknown as Parameters<typeof decorateDiaryDetail>[0])
     }
 
     res.status(200).json({
@@ -1211,14 +818,13 @@ export const getAttemptDetailForTherapist = async (
 
     const isOwnerTherapist =
       String(attempt.therapist || '') === String(therapistId)
-    const isAdmin = me.roles?.includes(UserRole.ADMIN)
-    if (!isOwnerTherapist && !isAdmin) {
+    const isAdminUser = me.roles?.includes(UserRole.ADMIN)
+    if (!isOwnerTherapist && !isAdminUser) {
       res.status(403).json({ success: false, message: 'Forbidden' })
       return
     }
 
-    // Join band if applicable
-    let band: any = undefined
+    let band = undefined
     if (attempt.moduleType === 'questionnaire' && attempt.totalScore != null) {
       band = await ScoreBand.findOne({
         module: attempt.module,
@@ -1229,13 +835,12 @@ export const getAttemptDetailForTherapist = async (
         .lean()
     }
 
-    // Optional: join patient + module titles for header context
     const [patient, moduleDoc] = await Promise.all([
       User.findById(attempt.user).select('_id name username email').lean(),
       Module.findById(attempt.module).select('_id title type').lean(),
     ])
 
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       ...attempt,
       band,
       patient: patient
@@ -1252,9 +857,9 @@ export const getAttemptDetailForTherapist = async (
     }
 
     if (attempt.moduleType === 'questionnaire') {
-      payload.detail = decorateAttemptItems(attempt)
+      payload.detail = decorateAttemptItems(attempt as unknown as Parameters<typeof decorateAttemptItems>[0])
     } else if (attempt.moduleType === 'activity_diary') {
-      payload.diary = decorateDiaryDetail(attempt)
+      payload.diary = decorateDiaryDetail(attempt as unknown as Parameters<typeof decorateDiaryDetail>[0])
     }
 
     res.status(200).json({ success: true, attempt: payload })
