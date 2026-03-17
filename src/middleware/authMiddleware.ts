@@ -1,11 +1,19 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import User from '../models/userModel'
+import { Types } from 'mongoose'
+import { UserRole } from '../models/userModel'
 
 declare global {
   namespace Express {
     interface Request {
-      user?: any
+      user?: {
+        _id: Types.ObjectId
+        username: string
+        email: string
+        roles: UserRole[]
+        isVerifiedTherapist?: boolean
+      }
     }
   }
 }
@@ -41,7 +49,13 @@ const authenticateUser = async (
       return
     }
 
-    req.user = user
+    req.user = {
+      _id: user._id as Types.ObjectId,
+      username: user.username,
+      email: user.email,
+      roles: user.roles,
+      isVerifiedTherapist: user.isVerifiedTherapist,
+    }
 
     next()
   } catch (error) {

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express'
+import mongoose from 'mongoose'
 import User, { UserRole } from '../models/userModel'
 import ModuleAttempt from '../models/moduleAttemptModel'
 import { errorHandler } from '../utils/errorHandler'
@@ -448,8 +449,15 @@ const addRemoveTherapist = async (
       message = 'Therapist assigned to patient'
     }
 
-    await patient.save()
-    await therapist.save()
+    const session = await mongoose.startSession()
+    try {
+      await session.withTransaction(async () => {
+        await patient.save({ session })
+        await therapist.save({ session })
+      })
+    } finally {
+      await session.endSession()
+    }
 
     res
       .status(200)

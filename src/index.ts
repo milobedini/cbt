@@ -26,7 +26,7 @@ const PORT = process.env.PORT || 3000
 
 connectDB()
 
-app.use(express.json())
+app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
 app.use((req, _res, next) => {
   console.log('Server hit', req.url)
@@ -52,7 +52,7 @@ app.use(
 app.use('/api', authRouter)
 app.use('/api/user', authenticateUser, userRouter)
 app.use('/api/modules', authenticateUser, moduleRouter)
-app.use('/api/programs', programRouter)
+app.use('/api/programs', authenticateUser, programRouter)
 app.use('/api/attempts', authenticateUser, attemptRouter)
 app.use('/api/assignments', authenticateUser, assignmentRouter)
 
