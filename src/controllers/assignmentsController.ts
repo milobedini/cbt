@@ -172,14 +172,14 @@ export const getMyAssignments = async (req: Request, res: Response) => {
       .populate('therapist', 'name')
       .lean()
 
-    const assignments = items.map((asg: any) => {
-      const la = asg.latestAttempt
+    const assignments = items.map((asg) => {
+      const la = asg.latestAttempt as unknown as Parameters<typeof computePercentCompleteForAttempt>[0] | undefined
       const percentComplete =
         asg.status === 'completed'
           ? 100
           : la
-          ? computePercentCompleteForAttempt(la)
-          : 0 // no attempt yet
+            ? computePercentCompleteForAttempt(la)
+            : 0
       return { ...asg, percentComplete }
     })
 

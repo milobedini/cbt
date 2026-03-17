@@ -18,7 +18,7 @@ const getModules = async (req: Request, res: Response) => {
     }
 
     // 1) Base filter (optional program)
-    const match: any = {}
+    const match: mongoose.FilterQuery<typeof Module> = {}
     if (program && mongoose.isValidObjectId(program)) {
       match.program = new Types.ObjectId(program)
     }

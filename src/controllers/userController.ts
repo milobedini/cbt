@@ -11,7 +11,7 @@ const escapeRegex = (str: string): string =>
 
 type Boolish = boolean | undefined
 
-const parseBool = (v: any): Boolish => {
+const parseBool = (v: unknown): Boolish => {
   if (v === undefined) return undefined
   if (typeof v === 'boolean') return v
   if (typeof v === 'string') {
@@ -66,8 +66,8 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
     const limit = Math.min(limitRaw, 200)
 
     const q = (req.query.q as string | undefined)?.trim()
-    const roles = splitCSV(req.query.roles as any)
-    const ids = splitCSV(req.query.ids as any)
+    const roles = splitCSV(req.query.roles as string | string[] | undefined)
+    const ids = splitCSV(req.query.ids as string | string[] | undefined)
 
     const isVerified = parseBool(req.query.isVerified)
     const isVerifiedTherapist = parseBool(req.query.isVerifiedTherapist)
@@ -81,9 +81,10 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
     const lastLoginTo = toDate(req.query.lastLoginTo as string | undefined)
 
     const sortParam = (req.query.sort as string | undefined)?.trim()
-    const selectFields = splitCSV(req.query.select as any)
+    const selectFields = splitCSV(req.query.select as string | string[] | undefined)
 
     // ------- Build $match (filters) -------
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const match: Record<string, any> = {}
 
     if (q) {
@@ -209,7 +210,7 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
         : safeDefaultProjection
 
     // ------- Aggregation with facets (items + total + filter facets) -------
-    const pipeline: any[] = [
+    const pipeline: mongoose.PipelineStage[] = [
       { $match: match },
       // small lookup to include minimal therapist info:
       {
