@@ -595,6 +595,7 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
           _id: 1,
           user: { _id: 1, username: 1, email: 1, name: 1 },
           module: { _id: 1, title: 1 },
+          moduleType: 1,
           totalScore: 1,
           scoreBandLabel: 1,
           band: 1,

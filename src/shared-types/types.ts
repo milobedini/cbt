@@ -341,6 +341,7 @@ export type TherapistLatestRow = {
   module: TherapistModulePreview
 
   // fields from the latest attempt (flattened)
+  moduleType?: 'questionnaire' | 'psychoeducation' | 'exercise' | 'activity_diary'
   iteration?: number
   completedAt?: string
   totalScore?: number
