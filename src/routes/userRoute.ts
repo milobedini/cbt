@@ -10,6 +10,7 @@ import {
 import express from 'express'
 import {
   getMyAttempts,
+  getTherapistAttemptModules,
   getTherapistLatest,
   getPatientModuleTimeline,
 } from '../controllers/attemptsController'
@@ -30,6 +31,9 @@ router.post('/verify', adminVerifyTherapist)
 router.get('/attempts', getMyAttempts)
 router.get('/available', getAvailableModules)
 router.get('/assignments', getMyAssignments) // ?status=active|completed|all
+
+// ✅ Therapist: distinct modules attempted by patients
+router.get('/therapist/attempts/modules', getTherapistAttemptModules)
 
 // ✅ Therapist: latest per (patient,module)
 router.get('/therapist/attempts/latest', getTherapistLatest)

@@ -984,6 +984,48 @@ export const getMyAttemptDetail = async (req: Request, res: Response) => {
   }
 }
 
+// GET /therapist/attempts/modules
+export const getTherapistAttemptModules = async (req: Request, res: Response) => {
+  try {
+    const therapistId = req.user?._id as Types.ObjectId
+    const me = await User.findById(therapistId, 'roles isVerifiedTherapist')
+    if (
+      !me ||
+      (!me.roles.includes(UserRole.ADMIN) &&
+        !(me.roles.includes(UserRole.THERAPIST) && me.isVerifiedTherapist))
+    ) {
+      res.status(403).json({ success: false, message: 'Access denied' })
+      return
+    }
+
+    const modules = await ModuleAttempt.aggregate([
+      { $match: { therapist: therapistId } },
+      { $group: { _id: '$module', moduleType: { $first: '$moduleType' } } },
+      {
+        $lookup: {
+          from: 'modules',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'mod',
+        },
+      },
+      { $addFields: { mod: { $arrayElemAt: ['$mod', 0] } } },
+      {
+        $project: {
+          _id: 1,
+          title: '$mod.title',
+          moduleType: 1,
+        },
+      },
+      { $sort: { title: 1 } },
+    ])
+
+    res.status(200).json({ success: true, modules })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
 // GET /therapist/attempts/:attemptId
 export const getAttemptDetailForTherapist = async (
   req: Request,
