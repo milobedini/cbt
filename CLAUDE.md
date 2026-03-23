@@ -4,6 +4,8 @@
 
 cbt — Node/Express backend API for the bwell therapy app. Serves a React Native (Expo) frontend with role-based access (Patient, Therapist, Admin) for CBT, PWP, and self-help workflows.
 
+**Frontend:** The React Native (Expo) app lives at `../bwell` (`/Users/milobedini/Documents/git/bwell`).
+
 ## Stack
 
 - **Runtime:** Node.js, Express 5.1

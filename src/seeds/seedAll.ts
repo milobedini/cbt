@@ -520,7 +520,7 @@ const seedUsers = async (): Promise<SeededUsers> => {
       name: generateName(),
       roles: [UserRole.ADMIN],
       isVerified: true,
-      lastLogin: daysAgo(randInt(0, 30)),
+      lastLogin: i === 1 ? daysAgo(0) : daysAgo(randInt(0, 30)),
     })
     admins.push(user._id as Types.ObjectId)
   }
@@ -534,6 +534,8 @@ const seedUsers = async (): Promise<SeededUsers> => {
     ...Array(8).fill(null).map(() => randInt(3, 4)),
     ...Array(4).fill(null).map(() => randInt(5, 8)),
   ])
+  // Enrichment: therapist1 (index 0) gets 10 patients for rich test data
+  patientCounts[0] = 10
 
   // Unverified therapists: the 3 with 0 patients + 4 random others
   const zeroPatientIndices = patientCounts.reduce<number[]>(
@@ -548,6 +550,8 @@ const seedUsers = async (): Promise<SeededUsers> => {
     ...zeroPatientIndices,
     ...verifiedCandidates.slice(0, 4),
   ])
+  // Enrichment: therapist1 (index 0) is always verified
+  unverifiedIndices.delete(0)
 
   for (let i = 0; i < 25; i++) {
     const user = await User.create({
@@ -558,7 +562,7 @@ const seedUsers = async (): Promise<SeededUsers> => {
       roles: [UserRole.THERAPIST],
       isVerified: true,
       isVerifiedTherapist: !unverifiedIndices.has(i),
-      lastLogin: daysAgo(randInt(0, 14)),
+      lastLogin: i === 0 ? daysAgo(0) : daysAgo(randInt(0, 14)),
     })
     therapists.push(user._id as Types.ObjectId)
   }
@@ -576,14 +580,21 @@ const seedUsers = async (): Promise<SeededUsers> => {
     if (patientCounts[therapistIdx] > 0) allSlots.push({ therapistIdx })
   }
   const patientSlots = shuffle(allSlots).slice(0, 55)
+  // Enrichment: patient1 (index 0) always assigned to therapist1 (index 0)
+  patientSlots[0] = { therapistIdx: 0 }
 
   for (let i = 1; i <= 60; i++) {
-    const loginVariant = rand()
-    const lastLogin = loginVariant < 0.3
-      ? daysAgo(randInt(0, 3))
-      : loginVariant < 0.7
-        ? daysAgo(randInt(4, 21))
-        : daysAgo(randInt(22, 60))
+    // Enrichment: patient1 always has a recent login
+    const lastLogin = i === 1
+      ? daysAgo(0)
+      : (() => {
+          const loginVariant = rand()
+          return loginVariant < 0.3
+            ? daysAgo(randInt(0, 3))
+            : loginVariant < 0.7
+              ? daysAgo(randInt(4, 21))
+              : daysAgo(randInt(22, 60))
+        })()
 
     const user = await User.create({
       username: `patient${i}`,
@@ -644,6 +655,28 @@ const seedAssignments = async (
     if (i < 47) return randInt(2, 4)
     return randInt(5, 7)
   }))
+
+  // Enrichment: find patient1 in assignedPatients and give them many assignments
+  const patient1Id = users.patients[0]
+  const therapist1Id = users.therapists[0]
+  const patient1Idx = assignedPatients.findIndex((p) => String(p) === String(patient1Id))
+  if (patient1Idx !== -1) {
+    // patient1 gets one per module + extras = ~15 total (handled via dedicated loop below)
+    patientAssignmentCounts[patient1Idx] = 0 // Skip in main loop, handled separately
+  }
+
+  // Enrichment: boost therapist1's other patients to 4-6 assignments each
+  const therapist1PatientIds = new Set(
+    assignedPatients
+      .filter((p) => String(users.patientTherapistMap.get(String(p))) === String(therapist1Id))
+      .map(String)
+  )
+  for (let i = 0; i < assignedPatients.length; i++) {
+    if (String(assignedPatients[i]) === String(patient1Id)) continue
+    if (therapist1PatientIds.has(String(assignedPatients[i]))) {
+      patientAssignmentCounts[i] = Math.max(patientAssignmentCounts[i], randInt(4, 6))
+    }
+  }
 
   // Filter to assignable modules (questionnaires weighted 60%, rest 40%)
   const questionnaireModules = modules.filter((m) => m.data.type === 'questionnaire')
@@ -722,6 +755,89 @@ const seedAssignments = async (
     }
   }
 
+  // ── Enrichment: dedicated patient1 assignments covering every module ──
+  if (patient1Idx !== -1) {
+    // One assignment per module (guaranteed full coverage)
+    const patient1Modules = [...modules]
+    // Add extra random modules for repeat assignments (score history), excluding diary (handled separately)
+    const extraCount = randInt(4, 7)
+    for (let i = 0; i < extraCount; i++) {
+      let mod = pickModule()
+      while (mod.data.type === 'activity_diary') mod = pickModule()
+      patient1Modules.push(mod)
+    }
+
+    // Add 2 extra activity diary assignments (so patient1 has 3 total: 2 completed + 1 in_progress)
+    const diaryModule = modules.find((m) => m.data.type === 'activity_diary')
+    if (diaryModule) {
+      patient1Modules.push(diaryModule, diaryModule)
+    }
+
+    const patient1Statuses = ['completed', 'completed', 'completed', 'completed', 'completed',
+      'completed', 'assigned', 'assigned', 'in_progress', 'in_progress', 'cancelled']
+
+    // Build a status override map for activity diary assignments to guarantee 2 completed + 1 in_progress
+    let diarySeenCount = 0
+    const getDiaryStatus = (): string => {
+      diarySeenCount++
+      if (diarySeenCount <= 2) return 'completed'
+      return 'in_progress' // 3rd diary = halfway through
+    }
+
+    for (let j = 0; j < patient1Modules.length; j++) {
+      const mod = patient1Modules[j]
+      // Activity diary gets explicit status control
+      const status = mod.data.type === 'activity_diary'
+        ? getDiaryStatus()
+        : j < patient1Statuses.length
+          ? patient1Statuses[j]
+          : (rand() < 0.7 ? 'completed' : pick(['assigned', 'in_progress', 'cancelled']))
+
+      const dueAt = rand() < 0.7
+        ? (() => {
+            const dueRoll = rand()
+            return dueRoll < 0.3 ? daysAgo(randInt(1, 14))
+              : dueRoll < 0.6 ? daysAgo(-randInt(1, 5))
+              : daysAgo(-randInt(6, 14))
+          })()
+        : undefined
+
+      const recurrence = rand() < 0.2 && mod.data.type === 'questionnaire'
+        ? { freq: (rand() < 0.8 ? 'weekly' : 'monthly') as 'weekly' | 'monthly', interval: 1 }
+        : undefined
+
+      const notes = rand() < 0.5 ? pick(THERAPIST_NOTES) : undefined
+      const createdAt = daysAgo(randInt(7, 60))
+
+      const assignment = await ModuleAssignment.create({
+        user: patient1Id,
+        therapist: therapist1Id,
+        program: mod.program._id,
+        module: mod.doc._id,
+        moduleType: mod.data.type,
+        status,
+        ...(dueAt ? { dueAt } : {}),
+        ...(recurrence ? { recurrence } : {}),
+        ...(notes ? { notes } : {}),
+        createdAt,
+        updatedAt: status === 'assigned' ? createdAt : daysAgo(randInt(0, 6)),
+      })
+
+      seededAssignments.push({
+        _id: assignment._id as Types.ObjectId,
+        userId: patient1Id,
+        therapistId: therapist1Id,
+        moduleDoc: mod.doc,
+        moduleData: mod.data,
+        programId: mod.program._id as Types.ObjectId,
+        status,
+        dueAt,
+        questions: mod.questions,
+        bands: mod.bands,
+      })
+    }
+  }
+
   const statusCounts = seededAssignments.reduce(
     (acc, a) => {
       acc[a.status] = (acc[a.status] || 0) + 1
@@ -756,23 +872,46 @@ const generateAnswers = (questions: IQuestion[], bands: IScoreBand[]) => {
   return { answers, totalScore, scoreBandLabel }
 }
 
-/** Generate diary entries for an activity diary attempt */
-const generateDiaryEntries = (startDate: Date) => {
+/** Zero-padded slot label matching FE format: "06:00–08:00" */
+const pad2 = (n: number) => String(n).padStart(2, '0')
+const slotLabel = (h: number) =>
+  `${pad2(h)}:00\u2013${pad2(Math.min(24, h + SLOT_STEP_HOURS))}:00`
+
+/** Build a single diary entry at the given UTC slot */
+const buildDiaryEntry = (weekStart: Date, dayOffset: number, slotHour: number) => {
+  const entryDate = new Date(weekStart)
+  entryDate.setUTCDate(entryDate.getUTCDate() + dayOffset)
+  entryDate.setUTCHours(slotHour, 0, 0, 0)
+  return {
+    at: entryDate,
+    label: slotLabel(slotHour),
+    activity: pick(ACTIVITIES),
+    mood: randInt(0, 100),
+    achievement: randInt(0, 10),
+    closeness: randInt(0, 10),
+    enjoyment: randInt(0, 10),
+  }
+}
+
+/** Generate diary entries spread across the week anchored by weekStart (Monday) */
+const generateDiaryEntries = (weekStart: Date, entryCount?: number) => {
   const slotCount = Math.floor((SLOT_END_HOUR - SLOT_START_HOUR) / SLOT_STEP_HOURS)
-  return Array.from({ length: randInt(3, 10) }, () => {
-    const slotHour = SLOT_START_HOUR + randInt(0, slotCount - 1) * SLOT_STEP_HOURS
-    const entryDate = new Date(startDate)
-    entryDate.setHours(slotHour, randInt(0, 59), 0, 0)
-    return {
-      at: entryDate,
-      label: `${slotHour}:00\u2013${slotHour + SLOT_STEP_HOURS}:00`,
-      activity: pick(ACTIVITIES),
-      mood: randInt(0, 100),
-      achievement: randInt(0, 10),
-      closeness: randInt(0, 10),
-      enjoyment: randInt(0, 10),
+  const count = entryCount ?? randInt(3, 10)
+  return Array.from({ length: count }, () =>
+    buildDiaryEntry(weekStart, randInt(0, 6), SLOT_START_HOUR + randInt(0, slotCount - 1) * SLOT_STEP_HOURS)
+  )
+}
+
+/** Generate a full week of diary entries — every 2-hour slot, every day (63 entries) */
+const generateFullDiaryWeek = (weekStart: Date) => {
+  const slotsPerDay = Math.floor((SLOT_END_HOUR - SLOT_START_HOUR) / SLOT_STEP_HOURS)
+  const entries: ReturnType<typeof generateDiaryEntries> = []
+  for (let day = 0; day < 7; day++) {
+    for (let slot = 0; slot < slotsPerDay; slot++) {
+      entries.push(buildDiaryEntry(weekStart, day, SLOT_START_HOUR + slot * SLOT_STEP_HOURS))
     }
-  })
+  }
+  return entries
 }
 
 /** Build a module snapshot for questionnaire attempts */
@@ -871,10 +1010,16 @@ const seedAttempts = async (
 
     // Activity diary entries (full for submitted, partial for in-progress)
     if (assignment.moduleData.type === 'activity_diary') {
+      const weekStart = getWeekStart(startedAt)
+      attemptData.weekStart = weekStart
+      const isPatient1 = String(assignment.userId) === String(users.patients[0])
       if (isSubmitted) {
-        attemptData.diaryEntries = generateDiaryEntries(startedAt)
+        // Enrichment: patient1's completed diaries have every slot filled
+        attemptData.diaryEntries = isPatient1
+          ? generateFullDiaryWeek(weekStart)
+          : generateDiaryEntries(weekStart)
       } else {
-        attemptData.diaryEntries = generateDiaryEntries(startedAt).slice(0, randInt(1, 3))
+        attemptData.diaryEntries = generateDiaryEntries(weekStart, randInt(1, 3))
       }
     }
 
@@ -996,6 +1141,106 @@ const seedAttempts = async (
             chosenIndex,
             chosenText: choice.text,
           }
+        })
+        attemptData.answers = partialAnswers
+      }
+      attemptData.moduleSnapshot = buildSnapshot(mod.doc, mod.questions)
+    }
+
+    await ModuleAttempt.create(attemptData)
+    totalCreated++
+  }
+
+  // ── Enrichment: extra abandoned attempts for patient1 ──
+  const patient1Id = users.patients[0]
+  const therapist1Id = users.therapists[0]
+  const patient1AbandonedCount = randInt(5, 8)
+  for (let i = 0; i < patient1AbandonedCount; i++) {
+    const mod = pick(modules)
+    const startedAt = daysAgo(randInt(0, 30))
+    const lastInteractionAt = minsAfter(startedAt, randInt(1, 5))
+    const iteration = getIteration(patient1Id, mod.doc._id as Types.ObjectId)
+
+    const attemptData: Record<string, unknown> = {
+      user: patient1Id,
+      therapist: therapist1Id,
+      program: mod.program._id,
+      module: mod.doc._id,
+      moduleType: mod.data.type,
+      status: 'abandoned',
+      startedAt,
+      lastInteractionAt,
+      iteration,
+      contentVersion: 1,
+    }
+
+    if (mod.data.type === 'questionnaire' && mod.questions.length > 0) {
+      const answeredCount = randInt(0, Math.max(1, mod.questions.length - 2))
+      if (answeredCount > 0) {
+        const partialAnswers = mod.questions.slice(0, answeredCount).map((q) => {
+          const chosenIndex = randInt(0, q.choices.length - 1)
+          const choice = q.choices[chosenIndex]
+          return { question: q._id, chosenScore: choice.score, chosenIndex, chosenText: choice.text }
+        })
+        attemptData.answers = partialAnswers
+      }
+      attemptData.moduleSnapshot = buildSnapshot(mod.doc, mod.questions)
+    }
+
+    await ModuleAttempt.create(attemptData)
+    totalCreated++
+  }
+
+  // ── Enrichment: extra self-started attempts for patient1 on open modules ──
+  const patient1SelfStartCount = randInt(5, 8)
+  for (let i = 0; i < patient1SelfStartCount; i++) {
+    const mod = pick(openModules)
+    const statusRoll = rand()
+    const status = statusRoll < 0.6 ? 'submitted' : statusRoll < 0.8 ? 'started' : 'abandoned'
+    const isSubmitted = status === 'submitted'
+
+    const startDaysAgo = isSubmitted
+      ? (rand() < 0.5 ? randInt(0, 14) : randInt(15, 60))
+      : randInt(0, 14)
+    const startedAt = daysAgo(startDaysAgo)
+    const durationMins = mod.data.type === 'questionnaire' ? randInt(3, 20) : randInt(2, 15)
+
+    const completedAt = isSubmitted ? minsAfter(startedAt, durationMins) : undefined
+    const lastInteractionAt = status === 'abandoned'
+      ? minsAfter(startedAt, randInt(1, 5))
+      : (completedAt ?? minsAfter(startedAt, randInt(1, 5)))
+    const durationSecs = isSubmitted ? durationMins * 60 : undefined
+
+    const iteration = getIteration(patient1Id, mod.doc._id as Types.ObjectId)
+
+    const attemptData: Record<string, unknown> = {
+      user: patient1Id,
+      therapist: therapist1Id,
+      program: mod.program._id,
+      module: mod.doc._id,
+      moduleType: mod.data.type,
+      status,
+      startedAt,
+      completedAt,
+      lastInteractionAt,
+      durationSecs,
+      iteration,
+      contentVersion: 1,
+    }
+
+    if (mod.data.type === 'questionnaire' && mod.questions.length > 0) {
+      if (isSubmitted) {
+        const { answers, totalScore, scoreBandLabel } = generateAnswers(mod.questions, mod.bands)
+        attemptData.answers = answers
+        attemptData.totalScore = totalScore
+        attemptData.scoreBandLabel = scoreBandLabel
+        attemptData.weekStart = getWeekStart(startedAt)
+      } else if (status === 'started') {
+        const answeredCount = randInt(1, Math.max(1, mod.questions.length - 1))
+        const partialAnswers = mod.questions.slice(0, answeredCount).map((q) => {
+          const chosenIndex = randInt(0, q.choices.length - 1)
+          const choice = q.choices[chosenIndex]
+          return { question: q._id, chosenScore: choice.score, chosenIndex, chosenText: choice.text }
         })
         attemptData.answers = partialAnswers
       }

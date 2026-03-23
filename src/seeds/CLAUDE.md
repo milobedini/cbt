@@ -19,6 +19,16 @@ Drops the entire database and reseeds everything from scratch:
 - **Assignment-attempt consistency** — completed assignments have a matching submitted attempt with `latestAttempt` back-linked; in_progress assignments have a matching started attempt.
 - **All users are email-verified** (`isVerified: true`). Therapist verification (`isVerifiedTherapist`) is mixed: ~18 verified, ~7 pending.
 
+## Enriched test users
+
+`admin1`, `therapist1`, and `patient1` are enriched with extra data for testing:
+
+- **admin1** — recent login, rich data visible via admin dashboard (from therapist1/patient1 activity)
+- **therapist1** — verified, 10 patients (including patient1), patients have 4-6 assignments each
+- **patient1** — assigned to therapist1, assignments covering every module (~13-16 total), mix of all statuses, extra abandoned and self-started attempts, activity diary entries
+
+These overrides are applied after the random distribution so the rest of the data stays unchanged.
+
 ## Credentials
 
 All users share password `12345678`:
