@@ -355,6 +355,31 @@ export type TherapistLatestRow = {
 export type TherapistLatestResponse = {
   success: boolean
   rows: TherapistLatestRow[]
+  nextCursor: string | null
+  totalCount: number
+}
+
+export type SeverityOption = 'severe' | 'moderate' | 'mild'
+export type SortOption = 'newest' | 'oldest' | 'severity'
+
+export type TherapistLatestFilters = {
+  patientId?: string
+  moduleId?: string
+  severity?: SeverityOption
+  status?: string
+  sort?: SortOption
+  limit?: number
+}
+
+export type TherapistAttemptModule = {
+  _id: string
+  title: string
+  moduleType: ModuleType
+}
+
+export type TherapistAttemptModulesResponse = {
+  success: boolean
+  modules: TherapistAttemptModule[]
 }
 
 // ==================================
