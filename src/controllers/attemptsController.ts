@@ -517,7 +517,7 @@ export const getMyAttempts = async (req: Request, res: Response) => {
   }
 }
 
-// GET /therapist/attempts/latest?limit=200
+// GET /therapist/attempts/latest
 export const getTherapistLatest = async (req: Request, res: Response) => {
   try {
     const therapistId = req.user?._id as Types.ObjectId
@@ -531,19 +531,184 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
       return
     }
 
-    const { limit = '200' } = req.query as { limit?: string }
-    const lim = Math.min(parseInt(limit, 10) || 200, 500)
+    const {
+      limit = '20',
+      patientId,
+      moduleId,
+      severity,
+      status = 'submitted',
+      sort = 'newest',
+      cursor,
+    } = req.query as {
+      limit?: string
+      patientId?: string
+      moduleId?: string
+      severity?: string
+      status?: string
+      sort?: string
+      cursor?: string
+    }
+    const lim = Math.min(parseInt(limit, 10) || 20, 100)
 
-    const rows = await ModuleAttempt.aggregate([
-      { $match: { therapist: therapistId, status: 'submitted' } },
-      { $sort: { completedAt: -1, _id: -1 } },
-      {
-        $group: {
-          _id: { user: '$user', module: '$module' },
-          doc: { $first: '$$ROOT' },
+    // Build dynamic $match
+    const match: Record<string, unknown> = { therapist: therapistId }
+
+    // Status filter
+    if (status === 'all') {
+      // no status filter
+    } else if (status === 'active') {
+      match.status = 'started'
+    } else if (status?.includes(',')) {
+      match.status = { $in: status.split(',') }
+    } else {
+      match.status = status || 'submitted'
+    }
+
+    // Patient filter
+    if (patientId) {
+      if (!Types.ObjectId.isValid(patientId)) {
+        res.status(400).json({ success: false, message: 'Invalid patientId' })
+        return
+      }
+      match.user = new Types.ObjectId(patientId)
+    }
+
+    // Module filter
+    if (moduleId) {
+      if (!Types.ObjectId.isValid(moduleId)) {
+        res.status(400).json({ success: false, message: 'Invalid moduleId' })
+        return
+      }
+      match.module = new Types.ObjectId(moduleId)
+    }
+
+    // Severity filter (score band label regex)
+    if (severity === 'severe') {
+      match.scoreBandLabel = { $regex: /severe|high/i }
+    } else if (severity === 'moderate') {
+      match.scoreBandLabel = { $regex: /moderate/i }
+    } else if (severity === 'mild') {
+      match.scoreBandLabel = { $regex: /mild|minimal|low/i }
+    }
+
+    // Sort
+    let sortStage: Record<string, 1 | -1>
+    if (sort === 'oldest') {
+      sortStage = { completedAt: 1, _id: 1 }
+    } else if (sort === 'severity') {
+      sortStage = { _severityWeight: -1, completedAt: -1, _id: -1 }
+    } else {
+      sortStage = { completedAt: -1, _id: -1 }
+    }
+
+    // Snapshot base match BEFORE cursor conditions (for totalCount)
+    const baseMatch = { ...match }
+
+    // Cursor filter (for pagination) — compound tiebreaker on (completedAt, _id)
+    if (cursor && sort !== 'severity') {
+      const parts = cursor.split('_')
+      const cursorDate = new Date(parts[0])
+      const cursorId = parts[1]
+      if (!isNaN(cursorDate.getTime())) {
+        if (cursorId && !Types.ObjectId.isValid(cursorId)) {
+          res.status(400).json({ success: false, message: 'Invalid cursor ID' })
+          return
+        }
+        if (sort === 'oldest') {
+          if (cursorId) {
+            match.$or = [
+              { completedAt: { $gt: cursorDate } },
+              { completedAt: cursorDate, _id: { $gt: new Types.ObjectId(cursorId) } },
+            ]
+          } else {
+            match.completedAt = { $gt: cursorDate }
+          }
+        } else {
+          if (cursorId) {
+            match.$or = [
+              { completedAt: { $lt: cursorDate } },
+              { completedAt: cursorDate, _id: { $lt: new Types.ObjectId(cursorId) } },
+            ]
+          } else {
+            match.completedAt = { $lt: cursorDate }
+          }
+        }
+      }
+    }
+
+    const pipeline: mongoose.PipelineStage[] = [{ $match: match }]
+
+    // Add severity weight for severity sort
+    if (sort === 'severity') {
+      pipeline.push({
+        $addFields: {
+          _severityWeight: {
+            $switch: {
+              branches: [
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ['$scoreBandLabel', ''] },
+                      regex: /severe|high/i,
+                    },
+                  },
+                  then: 3,
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ['$scoreBandLabel', ''] },
+                      regex: /moderate/i,
+                    },
+                  },
+                  then: 2,
+                },
+                {
+                  case: {
+                    $regexMatch: {
+                      input: { $ifNull: ['$scoreBandLabel', ''] },
+                      regex: /mild|minimal|low/i,
+                    },
+                  },
+                  then: 1,
+                },
+              ],
+              default: 0,
+            },
+          },
         },
-      },
-      { $replaceWith: '$doc' },
+      })
+
+      // Cursor for severity sort: "weight_isoDate_id"
+      if (cursor) {
+        const [wStr, isoDate, id] = cursor.split('_')
+        const w = parseInt(wStr, 10)
+        const d = new Date(isoDate)
+        if (!isNaN(w) && !isNaN(d.getTime()) && id) {
+          if (!Types.ObjectId.isValid(id)) {
+            res.status(400).json({ success: false, message: 'Invalid cursor ID' })
+            return
+          }
+          pipeline.push({
+            $match: {
+              $or: [
+                { _severityWeight: { $lt: w } },
+                { _severityWeight: w, completedAt: { $lt: d } },
+                {
+                  _severityWeight: w,
+                  completedAt: d,
+                  _id: { $lt: new Types.ObjectId(id) },
+                },
+              ],
+            },
+          })
+        }
+      }
+    }
+
+    pipeline.push(
+      { $sort: sortStage },
+      { $limit: lim + 1 },
       {
         $lookup: {
           from: 'scoreBands',
@@ -561,7 +726,13 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
               },
             },
             {
-              $project: { _id: 1, label: 1, interpretation: 1, min: 1, max: 1 },
+              $project: {
+                _id: 1,
+                label: 1,
+                interpretation: 1,
+                min: 1,
+                max: 1,
+              },
             },
           ],
           as: 'band',
@@ -602,15 +773,39 @@ export const getTherapistLatest = async (req: Request, res: Response) => {
           completedAt: 1,
           weekStart: 1,
           iteration: 1,
+          _severityWeight: 1,
         },
       },
-      { $limit: lim },
-    ])
-    const decorated = rows.map((r) => ({
-      ...r,
-      percentComplete: 100,
-    }))
-    res.status(200).json({ success: true, rows: decorated })
+    )
+
+    const rows = await ModuleAttempt.aggregate(pipeline)
+
+    // Count total matching (without cursor conditions) for header subtitle
+    const totalCount = await ModuleAttempt.countDocuments(baseMatch)
+
+    // Determine nextCursor
+    const hasMore = rows.length > lim
+    const pageRows = hasMore ? rows.slice(0, lim) : rows
+
+    let nextCursor: string | null = null
+    if (hasMore) {
+      const last = pageRows[pageRows.length - 1]
+      if (sort === 'severity') {
+        nextCursor = `${last._severityWeight}_${last.completedAt}_${last._id}`
+      } else {
+        nextCursor = new Date(last.completedAt).toISOString() + '_' + last._id
+      }
+    }
+
+    // Clean up internal fields and decorate
+    const decorated = pageRows.map(
+      ({ _severityWeight, ...r }: { _severityWeight?: number; [key: string]: unknown }) => ({
+        ...r,
+        percentComplete: 100,
+      }),
+    )
+
+    res.status(200).json({ success: true, rows: decorated, nextCursor, totalCount })
   } catch (error) {
     errorHandler(res, error)
   }
