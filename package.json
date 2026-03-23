@@ -7,11 +7,7 @@
     "dev": "nodemon",
     "build": "tsc",
     "publish": "npm --prefix src/shared-types run publish:pkg",
-    "refresh": "ts-node ./src/seeds/phq9.ts",
-    "seed": "ts-node ./src/seeds/questionnaires.ts",
-    "seed-others": "ts-node ./src/seeds/otherPrograms.ts",
-    "drop": "ts-node ./src/seeds/drop.ts",
-    "diary": "ts-node ./src/seeds/diary.ts"
+    "seed-all": "ts-node ./src/seeds/seedAll.ts"
   },
   "repository": {
     "type": "git",
