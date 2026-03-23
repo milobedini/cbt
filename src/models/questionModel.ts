@@ -20,7 +20,7 @@ const QuestionSchema = new Schema<IQuestion>(
     choices: [
       {
         text: { type: String, required: true },
-        score: { type: Number, required: true, min: 0, max: 3 },
+        score: { type: Number, required: true, min: 0, max: 4 },
       },
     ],
   },
