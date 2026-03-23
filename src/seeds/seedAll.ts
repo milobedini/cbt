@@ -1,3 +1,6 @@
+import dotenv from 'dotenv'
+dotenv.config()
+
 import mongoose, { Types } from 'mongoose'
 import bcrypt from 'bcryptjs'
 import { DateTime } from 'luxon'
