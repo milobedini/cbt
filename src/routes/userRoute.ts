@@ -6,39 +6,43 @@ import {
   getClients,
   getUser,
   getUsers,
-} from '../controllers/userController'
-import express from 'express'
+} from "../controllers/userController";
+import express from "express";
 import {
   getMyAttempts,
   getTherapistAttemptModules,
   getTherapistLatest,
   getPatientModuleTimeline,
-} from '../controllers/attemptsController'
-import { getAvailableModules } from '../controllers/moduleController'
-import { getMyAssignments } from '../controllers/assignmentsController'
+} from "../controllers/attemptsController";
+import { getAvailableModules } from "../controllers/moduleController";
+import { getMyAssignments } from "../controllers/assignmentsController";
+import { getTherapistDashboard } from "../controllers/therapistDashboardController";
 
-const router = express.Router()
+const router = express.Router();
 
-router.get('/', getUser)
-router.get('/users', getUsers)
-router.get('/patients', getAllPatients)
-router.get('/clients', getClients)
-router.get('/admin/stats', adminStats)
-router.post('/assign', addRemoveTherapist)
-router.post('/verify', adminVerifyTherapist)
+router.get("/", getUser);
+router.get("/users", getUsers);
+router.get("/patients", getAllPatients);
+router.get("/clients", getClients);
+router.get("/admin/stats", adminStats);
+router.post("/assign", addRemoveTherapist);
+router.post("/verify", adminVerifyTherapist);
 
 // ✅ Patient: my submitted attempts (cursor-paginated)
-router.get('/attempts', getMyAttempts)
-router.get('/available', getAvailableModules)
-router.get('/assignments', getMyAssignments) // ?status=active|completed|all
+router.get("/attempts", getMyAttempts);
+router.get("/available", getAvailableModules);
+router.get("/assignments", getMyAssignments); // ?status=active|completed|all
+
+// ✅ Therapist: dashboard (triage buckets + stats)
+router.get("/therapist/dashboard", getTherapistDashboard);
 
 // ✅ Therapist: distinct modules attempted by patients
-router.get('/therapist/attempts/modules', getTherapistAttemptModules)
+router.get("/therapist/attempts/modules", getTherapistAttemptModules);
 
 // ✅ Therapist: latest per (patient,module)
-router.get('/therapist/attempts/latest', getTherapistLatest)
+router.get("/therapist/attempts/latest", getTherapistLatest);
 
 // ✅ Therapist: one patient’s timeline for one module
-router.get('/therapist/patients/:patientId/timeline', getPatientModuleTimeline)
+router.get("/therapist/patients/:patientId/timeline", getPatientModuleTimeline);
 
-export default router
+export default router;
