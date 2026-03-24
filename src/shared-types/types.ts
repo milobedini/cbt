@@ -700,3 +700,46 @@ export type BasicMutationResponse = {
   message?: string
   data?: any
 }
+
+// ==================================
+// API: Therapist Dashboard
+// ==================================
+
+export type DashboardScorePreview = {
+  moduleTitle: string
+  moduleId: string
+  score: number
+  band: string
+  scoreBandLabel: string
+  submittedAt: string
+}
+
+export type DashboardAssignmentSummary = {
+  total: number
+  completed: number
+  overdue: number
+}
+
+export type DashboardClientItem = {
+  patient: Pick<User, '_id' | 'username' | 'email' | 'name'>
+  latestScore: DashboardScorePreview | null
+  previousScore: { score: number } | null
+  assignments: DashboardAssignmentSummary
+  lastActive: string | null
+  reasons: Array<'severe_score' | 'worsening' | 'overdue'>
+}
+
+export type DashboardStats = {
+  totalClients: number
+  needsAttention: number
+  submittedThisWeek: number
+  overdueAssignments: number
+}
+
+export type TherapistDashboardResponse = {
+  weekStart: string
+  stats: DashboardStats
+  needsAttention: DashboardClientItem[]
+  completedThisWeek: DashboardClientItem[]
+  noActivity: DashboardClientItem[]
+}
