@@ -394,12 +394,8 @@ export const getTherapistDashboard = async (
 
     // Sort completedThisWeek: most recent submission first
     completedThisWeek.sort((a, b) => {
-      const aTime = a.latestScore?.submittedAt
-        ? new Date(a.latestScore.submittedAt).getTime()
-        : 0;
-      const bTime = b.latestScore?.submittedAt
-        ? new Date(b.latestScore.submittedAt).getTime()
-        : 0;
+      const aTime = a.lastActive ? new Date(a.lastActive).getTime() : 0;
+      const bTime = b.lastActive ? new Date(b.lastActive).getTime() : 0;
       return bTime - aTime;
     });
 
