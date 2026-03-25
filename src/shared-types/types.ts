@@ -743,3 +743,20 @@ export type TherapistDashboardResponse = {
   completedThisWeek: DashboardClientItem[]
   noActivity: DashboardClientItem[]
 }
+
+// ==================================
+// API: Patient Score Trends
+// ==================================
+
+export type ScoreTrendItem = {
+  moduleTitle: string
+  moduleId: string
+  latestScore: number
+  previousScore: number | null
+  sparkline: number[] // last 5 scores, oldest first
+}
+
+export type ScoreTrendsResponse = {
+  success: boolean
+  trends: ScoreTrendItem[]
+}

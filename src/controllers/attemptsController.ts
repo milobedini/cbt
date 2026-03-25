@@ -517,6 +517,77 @@ export const getMyAttempts = async (req: Request, res: Response) => {
   }
 }
 
+// GET /user/score-trends
+export const getMyScoreTrends = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?._id
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' })
+      return
+    }
+
+    const pipeline: mongoose.PipelineStage[] = [
+      // Only submitted questionnaire attempts with scores
+      {
+        $match: {
+          user: userId,
+          status: 'submitted',
+          moduleType: 'questionnaire',
+          totalScore: { $ne: null },
+        },
+      },
+      // Sort by completion date descending (newest first)
+      { $sort: { completedAt: -1 } },
+      // Group by module, collect last 5 scores
+      {
+        $group: {
+          _id: '$module',
+          scores: { $push: '$totalScore' },
+        },
+      },
+      // Limit to 5 scores per module
+      {
+        $project: {
+          _id: 1,
+          scores: { $slice: ['$scores', 5] },
+        },
+      },
+      // Lookup module title
+      {
+        $lookup: {
+          from: 'modules',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'moduleDoc',
+        },
+      },
+      { $unwind: '$moduleDoc' },
+      // Shape the output
+      {
+        $project: {
+          moduleId: { $toString: '$_id' },
+          moduleTitle: '$moduleDoc.title',
+          scores: 1,
+        },
+      },
+    ]
+
+    const rows = await ModuleAttempt.aggregate(pipeline)
+
+    const trends = rows.map((row) => ({
+      moduleTitle: row.moduleTitle,
+      moduleId: row.moduleId,
+      latestScore: row.scores[0],
+      previousScore: row.scores.length > 1 ? row.scores[1] : null,
+      sparkline: [...row.scores].reverse(), // oldest first for sparkline
+    }))
+
+    res.status(200).json({ success: true, trends })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
 // GET /therapist/attempts/latest
 export const getTherapistLatest = async (req: Request, res: Response) => {
   try {

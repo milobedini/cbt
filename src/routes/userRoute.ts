@@ -10,6 +10,7 @@ import {
 import express from "express";
 import {
   getMyAttempts,
+  getMyScoreTrends,
   getTherapistAttemptModules,
   getTherapistLatest,
   getPatientModuleTimeline,
@@ -32,6 +33,9 @@ router.post("/verify", adminVerifyTherapist);
 router.get("/attempts", getMyAttempts);
 router.get("/available", getAvailableModules);
 router.get("/assignments", getMyAssignments); // ?status=active|completed|all
+
+// ✅ Patient: score trends for dashboard sparklines
+router.get("/score-trends", getMyScoreTrends);
 
 // ✅ Therapist: dashboard (triage buckets + stats)
 router.get("/therapist/dashboard", getTherapistDashboard);
