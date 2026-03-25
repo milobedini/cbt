@@ -1251,6 +1251,123 @@ const seedAttempts = async (
     totalCreated++
   }
 
+  // ── Enrichment: therapist1 dashboard — submitted attempts THIS WEEK ──
+  // Creates pairs of attempts (old + recent) for 4 of therapist1's clients
+  // so the dashboard shows: "Completed This Week" bucket, score deltas, and ✓
+  const therapist1Patients = users.patients.filter(
+    (p) => String(users.patientTherapistMap.get(String(p))) === String(therapist1Id)
+      && String(p) !== String(patient1Id)
+  )
+
+  const questionnaireMods = modules.filter((m) => m.data.type === 'questionnaire' && m.questions.length > 0)
+
+  // Pick 4 clients (or fewer if therapist1 has fewer)
+  const dashboardClients = therapist1Patients.slice(0, Math.min(4, therapist1Patients.length))
+
+  for (let ci = 0; ci < dashboardClients.length; ci++) {
+    const clientId = dashboardClients[ci]
+    const mod = questionnaireMods[ci % questionnaireMods.length]
+
+    // --- Older attempt (8-14 days ago) → establishes baseline score ---
+    const olderStartedAt = daysAgo(randInt(8, 14))
+    const olderDurationMins = randInt(5, 15)
+    const olderCompletedAt = minsAfter(olderStartedAt, olderDurationMins)
+    const olderIteration = getIteration(clientId, mod.doc._id as Types.ObjectId)
+    const olderResult = generateAnswers(mod.questions, mod.bands)
+
+    await ModuleAttempt.create({
+      user: clientId,
+      therapist: therapist1Id,
+      program: mod.program._id,
+      module: mod.doc._id,
+      moduleType: mod.data.type,
+      status: 'submitted',
+      startedAt: olderStartedAt,
+      completedAt: olderCompletedAt,
+      lastInteractionAt: olderCompletedAt,
+      durationSecs: olderDurationMins * 60,
+      iteration: olderIteration,
+      contentVersion: 1,
+      answers: olderResult.answers,
+      totalScore: olderResult.totalScore,
+      scoreBandLabel: olderResult.scoreBandLabel,
+      weekStart: getWeekStart(olderStartedAt),
+      moduleSnapshot: buildSnapshot(mod.doc, mod.questions),
+    })
+    totalCreated++
+
+    // --- Recent attempt (0-3 days ago, this week) → triggers delta ---
+    const recentStartedAt = daysAgo(randInt(0, 3))
+    const recentDurationMins = randInt(5, 15)
+    const recentCompletedAt = minsAfter(recentStartedAt, recentDurationMins)
+    const recentIteration = getIteration(clientId, mod.doc._id as Types.ObjectId)
+
+    // Alternate: first 2 clients improve (lower score), next 2 worsen (higher score)
+    const improving = ci < 2
+    const maxPossible = mod.questions.reduce((sum, q) => sum + Math.max(...q.choices.map((c) => c.score)), 0)
+    const targetScore = improving
+      ? Math.max(0, olderResult.totalScore - randInt(2, 5))
+      : Math.min(maxPossible, olderResult.totalScore + randInt(2, 5))
+
+    // Generate answers that land close to targetScore
+    const recentAnswers = mod.questions.map((q) => {
+      const chosenIndex = randInt(0, q.choices.length - 1)
+      const choice = q.choices[chosenIndex]
+      return {
+        question: q._id,
+        chosenScore: choice.score,
+        chosenIndex,
+        chosenText: choice.text,
+      }
+    })
+    // Adjust first answer to hit target
+    const currentTotal = recentAnswers.reduce((sum, a) => sum + a.chosenScore, 0)
+    const diff = targetScore - currentTotal
+    if (diff !== 0 && recentAnswers.length > 0) {
+      const firstQ = mod.questions[0]
+      const adjusted = recentAnswers[0].chosenScore + diff
+      const clamped = Math.max(0, Math.min(firstQ.choices[firstQ.choices.length - 1].score, adjusted))
+      recentAnswers[0].chosenScore = clamped
+      const closestChoice = firstQ.choices.reduce((prev, curr) =>
+        Math.abs(curr.score - clamped) < Math.abs(prev.score - clamped) ? curr : prev
+      )
+      recentAnswers[0].chosenIndex = firstQ.choices.indexOf(closestChoice)
+      recentAnswers[0].chosenText = closestChoice.text
+    }
+
+    const recentTotal = recentAnswers.reduce((sum, a) => sum + a.chosenScore, 0)
+    const recentBand = mod.bands.find((b) => recentTotal >= b.min && recentTotal <= b.max)
+
+    await ModuleAttempt.create({
+      user: clientId,
+      therapist: therapist1Id,
+      program: mod.program._id,
+      module: mod.doc._id,
+      moduleType: mod.data.type,
+      status: 'submitted',
+      startedAt: recentStartedAt,
+      completedAt: recentCompletedAt,
+      lastInteractionAt: recentCompletedAt,
+      durationSecs: recentDurationMins * 60,
+      iteration: recentIteration,
+      contentVersion: 1,
+      answers: recentAnswers,
+      totalScore: recentTotal,
+      scoreBandLabel: recentBand?.label ?? 'Unknown',
+      weekStart: getWeekStart(recentStartedAt),
+      moduleSnapshot: buildSnapshot(mod.doc, mod.questions),
+    })
+    totalCreated++
+  }
+
+  // Mark one client's assignments as all completed (for ✓ display)
+  if (dashboardClients.length > 0) {
+    await ModuleAssignment.updateMany(
+      { user: dashboardClients[0], therapist: therapist1Id },
+      { $set: { status: 'completed' } }
+    )
+  }
+
   // Count by status
   const allAttempts = await ModuleAttempt.aggregate([
     { $group: { _id: '$status', count: { $sum: 1 } } },
