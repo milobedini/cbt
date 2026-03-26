@@ -1,28 +1,31 @@
-import express from 'express'
+import express from "express";
 import {
   createAssignment,
   listAssignmentsForTherapist,
   removeAssignment,
-  updateAssignmentStatus,
-} from '../controllers/assignmentsController'
-import authorizeTherapistOrAdmin from '../middleware/authorizeTherapistOrAdmin'
+  updateAssignment,
+} from "../controllers/assignmentsController";
+import authorizeTherapistOrAdmin from "../middleware/authorizeTherapistOrAdmin";
 
-const router = express.Router()
+const router = express.Router();
 
 // POST /api/assignments
-router.post('/', authorizeTherapistOrAdmin, createAssignment)
+router.post("/", authorizeTherapistOrAdmin, createAssignment);
 
 // GET /api/assignments/mine
-router.get('/mine', authorizeTherapistOrAdmin, listAssignmentsForTherapist)
+router.get("/mine", authorizeTherapistOrAdmin, listAssignmentsForTherapist);
 
-// PATCH /api/assignments/:assignmentId/status
+// PATCH /api/assignments/:assignmentId — update any combination of fields
+router.patch("/:assignmentId", authorizeTherapistOrAdmin, updateAssignment);
+
+// PATCH /api/assignments/:assignmentId/status — kept for backwards compat
 router.patch(
-  '/:assignmentId/status',
+  "/:assignmentId/status",
   authorizeTherapistOrAdmin,
-  updateAssignmentStatus
-)
+  updateAssignment,
+);
 
 // DELETE /api/assignments/:assignmentId
-router.delete('/:assignmentId', authorizeTherapistOrAdmin, removeAssignment)
+router.delete("/:assignmentId", authorizeTherapistOrAdmin, removeAssignment);
 
-export default router
+export default router;
