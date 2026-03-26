@@ -493,11 +493,40 @@ export type MyAssignmentView = {
   createdAt: string
   updatedAt: string
   percentComplete?: number
+  attemptCount?: number
 }
 
 export type MyAssignmentsResponse = {
   success: boolean
   assignments: MyAssignmentView[]
+}
+
+export type UpdateAssignmentInput = {
+  status?: AssignmentStatus
+  dueAt?: string
+  notes?: string
+  recurrence?: AssignmentRecurrence
+}
+
+export type TherapistAssignmentsResponse = {
+  success: boolean
+  items: MyAssignmentView[]
+  page: number
+  totalPages: number
+  totalItems: number
+}
+
+export type AssignmentSortOption = 'urgency' | 'newest' | 'oldest' | 'module'
+export type AssignmentUrgencyFilter = 'overdue' | 'due_soon' | 'on_track' | 'no_due_date'
+
+export type TherapistAssignmentFilters = {
+  patientId?: string
+  moduleId?: string
+  status?: string
+  urgency?: AssignmentUrgencyFilter
+  sortBy?: AssignmentSortOption
+  page?: number
+  limit?: number
 }
 
 export type ModulesQuery = {
