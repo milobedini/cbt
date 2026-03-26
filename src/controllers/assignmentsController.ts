@@ -124,7 +124,7 @@ export const listAssignmentsForTherapist = async (
       } else if (urgency === "on_track") {
         filter["dueAt"] = { $gt: soon };
       } else if (urgency === "no_due_date") {
-        filter["$or"] = [{ dueAt: { $exists: false } }, { dueAt: null }];
+        filter["$and"] = [{ $or: [{ dueAt: { $exists: false } }, { dueAt: null }] }];
       }
     }
 
@@ -132,6 +132,7 @@ export const listAssignmentsForTherapist = async (
     const totalPages = Math.ceil(totalItems / limitNum);
 
     const rawItems = await ModuleAssignment.find(filter)
+      .sort({ user: 1, dueAt: 1 })
       .populate("user", "_id username email name")
       .populate("module", "_id title type")
       .populate("program", "_id title")
@@ -307,7 +308,7 @@ export const updateAssignment = async (req: Request, res: Response) => {
       status?: string;
       dueAt?: string | null;
       notes?: string;
-      recurrence?: string;
+      recurrence?: { freq: string; interval?: number };
     };
 
     // Validate status only if it was provided
