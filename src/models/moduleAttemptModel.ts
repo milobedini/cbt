@@ -49,6 +49,7 @@ interface IModuleAttempt extends Document {
   moduleSnapshot?: {
     title: string
     disclaimer?: string
+    content?: string
     questions?: Array<{
       _id: Types.ObjectId
       text: string
@@ -140,6 +141,7 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
     moduleSnapshot: {
       title: String,
       disclaimer: String,
+      content: String,
       questions: [
         {
           _id: Schema.Types.ObjectId,
