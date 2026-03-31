@@ -141,10 +141,11 @@ interface BandData {
 interface ModuleData {
   title: string
   description: string
-  type: 'questionnaire' | 'psychoeducation' | 'exercise' | 'activity_diary'
+  type: 'questionnaire' | 'reading' | 'activity_diary'
   accessPolicy: 'open' | 'assigned'
   disclaimer?: string
   imageUrl?: string
+  content?: string
   questions?: QuestionData[]
   bands?: BandData[]
 }
@@ -392,11 +393,32 @@ const PROGRAMS: ProgramData[] = [
         title: 'Values Clarification',
         description:
           'Identify your core values across life domains and define small next actions.',
-        type: 'exercise',
+        type: 'reading',
         accessPolicy: 'assigned',
         disclaimer:
           'Coaching-style exercise. Not a substitute for therapy or crisis care.',
         imageUrl: 'https://placehold.co/600x400?text=Values+Clarification',
+        content: `## What Are Values?
+
+Values are the things that matter most to you — the principles and qualities you want to guide your life. They are different from goals: goals can be achieved, but values are ongoing directions.
+
+### Why Values Matter in Therapy
+
+When we feel low or anxious, we often lose touch with what matters to us. Reconnecting with your values can help you make choices that improve your wellbeing.
+
+### Life Domains to Consider
+
+Think about what matters to you in each of these areas:
+
+- **Relationships** — What kind of partner, friend, or family member do you want to be?
+- **Work & Education** — What matters to you about how you spend your working time?
+- **Leisure & Fun** — What activities bring you genuine enjoyment?
+- **Health & Wellbeing** — How do you want to care for your body and mind?
+- **Community** — How do you want to contribute to the world around you?
+
+### Next Steps
+
+For each domain, write down one small action you could take this week that moves you closer to living by your values. It does not need to be big — small steps count.`,
       },
     ],
   },
@@ -408,9 +430,31 @@ const PROGRAMS: ProgramData[] = [
         title: 'Sleep Hygiene Basics',
         description:
           'Learn practical sleep hygiene tips and when to seek further support.',
-        type: 'psychoeducation',
+        type: 'reading',
         accessPolicy: 'open',
         imageUrl: 'https://placehold.co/600x400?text=Sleep+Hygiene+Basics',
+        content: `## Why Sleep Matters
+
+Sleep has a powerful effect on mood, concentration, and physical health. When we are not sleeping well, everything feels harder.
+
+### Common Sleep Disruptors
+
+- **Screens before bed** — Blue light from phones and laptops suppresses melatonin production
+- **Caffeine after midday** — Caffeine has a half-life of 5-6 hours and can disrupt sleep even if you feel tired
+- **Irregular schedule** — Going to bed and waking at different times confuses your body clock
+- **Worrying in bed** — The bed becomes associated with stress rather than rest
+
+### Practical Tips
+
+1. **Set a consistent wake time** — even on weekends. This is more important than bedtime.
+2. **Create a wind-down routine** — 30-60 minutes before bed, do something calm (reading, stretching, a warm drink).
+3. **Keep the bedroom cool and dark** — your body temperature needs to drop to fall asleep.
+4. **If you cannot sleep after 20 minutes, get up** — go to another room, do something boring, and return when sleepy.
+5. **Limit naps** — if you must nap, keep it under 20 minutes before 3pm.
+
+### When to Seek Help
+
+If sleep problems persist for more than a few weeks and affect your daily life, speak to your therapist or GP. There are effective treatments for insomnia that do not involve medication.`,
       },
     ],
   },
@@ -448,6 +492,7 @@ const seedContent = async (): Promise<SeededModule[]> => {
           accessPolicy: modData.accessPolicy,
           ...(modData.disclaimer ? { disclaimer: modData.disclaimer } : {}),
           ...(modData.imageUrl ? { imageUrl: modData.imageUrl } : {}),
+          ...(modData.content ? { content: modData.content } : {}),
         },
         { upsert: true, new: true }
       )) as IModule
