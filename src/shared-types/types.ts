@@ -422,6 +422,7 @@ export type CreateModuleInput = {
   program: string
   disclaimer?: string
   imageUrl?: string
+  content?: string
   accessPolicy?: 'open' | 'assigned'
 }
 
