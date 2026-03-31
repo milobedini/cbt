@@ -26,8 +26,7 @@ interface IModuleAttempt extends Document {
   module: Types.ObjectId
   moduleType:
     | 'questionnaire'
-    | 'psychoeducation'
-    | 'exercise'
+    | 'reading'
     | 'activity_diary'
 
   // lifecycle
@@ -63,6 +62,7 @@ interface IModuleAttempt extends Document {
   // notes / metadata
   userNote?: string
   therapistNote?: string
+  readerNote?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -90,7 +90,7 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
     },
     moduleType: {
       type: String,
-      enum: ['questionnaire', 'psychoeducation', 'exercise', 'activity_diary'],
+      enum: ['questionnaire', 'reading', 'activity_diary'],
       required: true,
     },
 
@@ -151,6 +151,7 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
 
     userNote: String,
     therapistNote: String,
+    readerNote: String,
   },
   { timestamps: true, collection: 'moduleAttempts' }
 )
