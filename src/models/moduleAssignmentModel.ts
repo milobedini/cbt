@@ -9,8 +9,7 @@ interface IModuleAssignment extends Document {
   module: Types.ObjectId
   moduleType:
     | 'questionnaire'
-    | 'psychoeducation'
-    | 'exercise'
+    | 'reading'
     | 'activity_diary'
 
   status: AssignmentStatus
@@ -51,7 +50,7 @@ const ModuleAssignmentSchema = new Schema<IModuleAssignment>(
     },
     moduleType: {
       type: String,
-      enum: ['questionnaire', 'psychoeducation', 'exercise', 'activity_diary'],
+      enum: ['questionnaire', 'reading', 'activity_diary'],
       required: true,
     },
 
