@@ -136,6 +136,7 @@ const createModule = async (req: Request, res: Response) => {
       type,
       disclaimer,
       accessPolicy,
+      content,
     } = req.body
 
     if (!title || !description || !program || !type) {
@@ -148,8 +149,7 @@ const createModule = async (req: Request, res: Response) => {
 
     const allowedTypes = [
       'questionnaire',
-      'psychoeducation',
-      'exercise',
+      'reading',
       'activity_diary',
     ]
     if (!allowedTypes.includes(type)) {
@@ -177,6 +177,7 @@ const createModule = async (req: Request, res: Response) => {
       type,
       disclaimer,
       ...(accessPolicy ? { accessPolicy } : {}), // defaults to 'assigned' in schema
+      ...(content ? { content } : {}),
     })
 
     res.status(201).json({ success: true, module: newModule })

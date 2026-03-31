@@ -153,6 +153,15 @@ export const saveProgress = async (req: Request, res: Response) => {
       return
     }
 
+    if (attempt.moduleType === 'reading') {
+      const { readerNote } = req.body as { readerNote?: string }
+      if (readerNote !== undefined) attempt.readerNote = readerNote
+      attempt.lastInteractionAt = new Date()
+      await attempt.save()
+      res.status(200).json({ success: true, attempt })
+      return
+    }
+
     if (attempt.moduleType === 'activity_diary') {
       if (Array.isArray(diaryEntries)) {
         const sanitized = sanitizeDiaryEntries(diaryEntries)
@@ -283,6 +292,40 @@ export const submitAttempt = async (req: Request, res: Response) => {
             0,
             Math.floor((now.getTime() - attempt.startedAt.getTime()) / 1000)
           )
+        : undefined
+
+      const me = await User.findById(userId, 'therapist')
+      attempt.therapist = me?.therapist
+      await attempt.save()
+
+      if (!assignmentId) {
+        const possible = await findActiveAssignment(
+          attempt.user as Types.ObjectId,
+          attempt.module as Types.ObjectId,
+          attempt.therapist as Types.ObjectId
+        )
+        if (possible) assignmentId = String(possible._id)
+      }
+      if (assignmentId) {
+        await ModuleAssignment.findByIdAndUpdate(assignmentId, {
+          latestAttempt: attempt._id,
+          status: 'completed',
+        }).exec()
+      }
+
+      res.status(200).json({ success: true, attempt })
+      return
+    }
+
+    if (attempt.moduleType === 'reading') {
+      const { readerNote } = (req.body as { readerNote?: string; assignmentId?: string }) || {}
+      if (readerNote) attempt.readerNote = readerNote
+
+      attempt.completedAt = now
+      attempt.lastInteractionAt = now
+      attempt.status = 'submitted'
+      attempt.durationSecs = attempt.startedAt
+        ? Math.max(0, Math.floor((now.getTime() - attempt.startedAt.getTime()) / 1000))
         : undefined
 
       const me = await User.findById(userId, 'therapist')
