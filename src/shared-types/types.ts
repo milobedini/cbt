@@ -105,8 +105,7 @@ export type ProgramRef = Pick<Program, '_id' | 'title' | 'description'>
 
 export type ModuleType =
   | 'questionnaire'
-  | 'psychoeducation'
-  | 'exercise'
+  | 'reading'
   | 'activity_diary'
 
 export type Module = {
@@ -117,6 +116,7 @@ export type Module = {
   type: ModuleType
   disclaimer?: string
   imageUrl?: string
+  content?: string // markdown body for reading modules
   createdAt: string
   updatedAt: string
   accessPolicy: 'open' | 'assigned'
@@ -174,6 +174,7 @@ export type ModuleSnapshotQuestion = {
 export type ModuleSnapshot = {
   title: string
   disclaimer?: string
+  content?: string // preserved for reading modules
   questions?: ModuleSnapshotQuestion[]
 }
 
@@ -208,6 +209,7 @@ export type ModuleAttempt = {
 
   userNote?: string
   therapistNote?: string
+  readerNote?: string
   createdAt: string
   updatedAt: string
 }
@@ -301,12 +303,14 @@ export type SaveProgressInput = {
   // diary
   diaryEntries?: DiaryEntryInput[]
   merge?: boolean
+  // reading
+  readerNote?: string
   // common
   userNote?: string
 }
 export type SaveProgressResponse = { success: boolean; attempt: ModuleAttempt }
 
-export type SubmitAttemptInput = { assignmentId?: string }
+export type SubmitAttemptInput = { assignmentId?: string; readerNote?: string }
 export type SubmitAttemptResponse = { success: boolean; attempt: ModuleAttempt }
 
 // Cursor can be an ISO string (current impl) or an object if you adopt a 2-field cursor
@@ -341,7 +345,7 @@ export type TherapistLatestRow = {
   module: TherapistModulePreview
 
   // fields from the latest attempt (flattened)
-  moduleType?: 'questionnaire' | 'psychoeducation' | 'exercise' | 'activity_diary'
+  moduleType?: ModuleType
   iteration?: number
   completedAt?: string
   totalScore?: number
