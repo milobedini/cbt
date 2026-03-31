@@ -400,6 +400,8 @@ const PROGRAMS: ProgramData[] = [
         imageUrl: 'https://placehold.co/600x400?text=Values+Clarification',
         content: `## What Are Values?
 
+![Values illustration](https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=800&h=400&fit=crop)
+
 Values are the things that matter most to you — the principles and qualities you want to guide your life. They are different from goals: goals can be achieved, but values are ongoing directions.
 
 ### Why Values Matter in Therapy
