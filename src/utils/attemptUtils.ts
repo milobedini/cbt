@@ -43,7 +43,7 @@ export const therapistCanSeePatient = async (
 
 // Snapshot questions so history survives edits
 export const makeModuleSnapshot = async (moduleId: Types.ObjectId) => {
-  const mod = await Module.findById(moduleId, 'title disclaimer type program')
+  const mod = await Module.findById(moduleId, 'title disclaimer type program content')
   if (!mod) return null
   const questions = await Question.find({ module: moduleId })
     .sort({ order: 1 })
@@ -52,6 +52,7 @@ export const makeModuleSnapshot = async (moduleId: Types.ObjectId) => {
   return {
     title: mod.title,
     disclaimer: mod.disclaimer,
+    content: mod.content,
     questions:
       questions?.map((q) => ({
         _id: q._id,
