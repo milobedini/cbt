@@ -24,6 +24,7 @@ import {
   computePercentCompleteForAttempt,
   DiaryEntryInput,
 } from '../utils/diaryUtils'
+import { computeNextDueDate } from '../utils/practiceUtils'
 
 // Re-export for consumers that import from this file
 export { computePercentCompleteForAttempt }
@@ -328,6 +329,39 @@ export const submitAttempt = async (req: Request, res: Response) => {
         }).exec()
       }
 
+      // Auto-generate next recurring assignment
+      if (assignmentId) {
+        const completedAssignment = await ModuleAssignment.findById(
+          assignmentId
+        ).lean()
+        if (
+          completedAssignment?.recurrence?.freq &&
+          completedAssignment.recurrence.freq !== 'none'
+        ) {
+          const nextDueAt = computeNextDueDate(
+            completedAssignment.dueAt,
+            now,
+            completedAssignment.recurrence.freq,
+            completedAssignment.recurrence.interval
+          )
+          await ModuleAssignment.create({
+            user: completedAssignment.user,
+            therapist: completedAssignment.therapist,
+            program: completedAssignment.program,
+            module: completedAssignment.module,
+            moduleType: completedAssignment.moduleType,
+            status: 'assigned',
+            source: (completedAssignment as any).source ?? 'therapist',
+            dueAt: nextDueAt,
+            recurrence: completedAssignment.recurrence,
+            recurrenceGroupId:
+              (completedAssignment as any).recurrenceGroupId ??
+              completedAssignment._id,
+            notes: completedAssignment.notes,
+          })
+        }
+      }
+
       res.status(200).json({ success: true, attempt })
       return
     }
@@ -360,6 +394,39 @@ export const submitAttempt = async (req: Request, res: Response) => {
           latestAttempt: attempt._id,
           status: 'completed',
         }).exec()
+      }
+
+      // Auto-generate next recurring assignment
+      if (assignmentId) {
+        const completedAssignment = await ModuleAssignment.findById(
+          assignmentId
+        ).lean()
+        if (
+          completedAssignment?.recurrence?.freq &&
+          completedAssignment.recurrence.freq !== 'none'
+        ) {
+          const nextDueAt = computeNextDueDate(
+            completedAssignment.dueAt,
+            now,
+            completedAssignment.recurrence.freq,
+            completedAssignment.recurrence.interval
+          )
+          await ModuleAssignment.create({
+            user: completedAssignment.user,
+            therapist: completedAssignment.therapist,
+            program: completedAssignment.program,
+            module: completedAssignment.module,
+            moduleType: completedAssignment.moduleType,
+            status: 'assigned',
+            source: (completedAssignment as any).source ?? 'therapist',
+            dueAt: nextDueAt,
+            recurrence: completedAssignment.recurrence,
+            recurrenceGroupId:
+              (completedAssignment as any).recurrenceGroupId ??
+              completedAssignment._id,
+            notes: completedAssignment.notes,
+          })
+        }
       }
 
       res.status(200).json({ success: true, attempt })
@@ -431,6 +498,39 @@ export const submitAttempt = async (req: Request, res: Response) => {
         latestAttempt: attempt._id,
         status: 'completed',
       }).exec()
+    }
+
+    // Auto-generate next recurring assignment
+    if (assignmentId) {
+      const completedAssignment = await ModuleAssignment.findById(
+        assignmentId
+      ).lean()
+      if (
+        completedAssignment?.recurrence?.freq &&
+        completedAssignment.recurrence.freq !== 'none'
+      ) {
+        const nextDueAt = computeNextDueDate(
+          completedAssignment.dueAt,
+          now,
+          completedAssignment.recurrence.freq,
+          completedAssignment.recurrence.interval
+        )
+        await ModuleAssignment.create({
+          user: completedAssignment.user,
+          therapist: completedAssignment.therapist,
+          program: completedAssignment.program,
+          module: completedAssignment.module,
+          moduleType: completedAssignment.moduleType,
+          status: 'assigned',
+          source: (completedAssignment as any).source ?? 'therapist',
+          dueAt: nextDueAt,
+          recurrence: completedAssignment.recurrence,
+          recurrenceGroupId:
+            (completedAssignment as any).recurrenceGroupId ??
+            completedAssignment._id,
+          notes: completedAssignment.notes,
+        })
+      }
     }
 
     res.status(200).json({ success: true, attempt })
