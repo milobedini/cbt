@@ -780,6 +780,7 @@ const seedAssignments = async (
         module: mod.doc._id,
         moduleType: mod.data.type,
         status,
+        source: 'therapist' as const,
         ...(dueAt ? { dueAt } : {}),
         ...(recurrence ? { recurrence } : {}),
         ...(notes ? { notes } : {}),
@@ -863,6 +864,7 @@ const seedAssignments = async (
         module: mod.doc._id,
         moduleType: mod.data.type,
         status,
+        source: 'therapist' as const,
         ...(dueAt ? { dueAt } : {}),
         ...(recurrence ? { recurrence } : {}),
         ...(notes ? { notes } : {}),
@@ -884,6 +886,293 @@ const seedAssignments = async (
       })
     }
   }
+
+  // ── Recurring assignment chain (weekly PHQ-9 for patient2) ──
+  const phq9Module = modules.find((m) => m.data.title === 'PHQ-9')!
+  const patient2Id = users.patients[1]
+  const patient2TherapistId = users.patientTherapistMap.get(String(patient2Id))
+  // If patient2 has a therapist, build a recurring chain; otherwise use therapist1
+  const recurringTherapistId = patient2TherapistId ?? therapist1Id
+  const recurrenceGroupId = new Types.ObjectId()
+
+  for (let w = 0; w < 3; w++) {
+    const createdAt = daysAgo(28 - w * 7)
+    const completedAt = daysAgo(26 - w * 7)
+    const recurringAssignment = await ModuleAssignment.create({
+      user: patient2Id,
+      therapist: recurringTherapistId,
+      program: phq9Module.program._id,
+      module: phq9Module.doc._id,
+      moduleType: 'questionnaire',
+      status: 'completed',
+      source: 'therapist' as const,
+      recurrence: { freq: 'weekly' as const, interval: 1 },
+      recurrenceGroupId,
+      dueAt: daysAgo(27 - w * 7),
+      createdAt,
+      updatedAt: completedAt,
+    })
+    seededAssignments.push({
+      _id: recurringAssignment._id as Types.ObjectId,
+      userId: patient2Id,
+      therapistId: recurringTherapistId,
+      moduleDoc: phq9Module.doc,
+      moduleData: phq9Module.data,
+      programId: phq9Module.program._id as Types.ObjectId,
+      status: 'completed',
+      dueAt: daysAgo(27 - w * 7),
+      questions: phq9Module.questions,
+      bands: phq9Module.bands,
+    })
+  }
+
+  // Current active occurrence in the chain
+  const recurringActiveAssignment = await ModuleAssignment.create({
+    user: patient2Id,
+    therapist: recurringTherapistId,
+    program: phq9Module.program._id,
+    module: phq9Module.doc._id,
+    moduleType: 'questionnaire',
+    status: 'assigned',
+    source: 'therapist' as const,
+    recurrence: { freq: 'weekly' as const, interval: 1 },
+    recurrenceGroupId,
+    dueAt: daysAgo(-2), // due in 2 days
+    createdAt: daysAgo(7),
+    updatedAt: daysAgo(7),
+  })
+  seededAssignments.push({
+    _id: recurringActiveAssignment._id as Types.ObjectId,
+    userId: patient2Id,
+    therapistId: recurringTherapistId,
+    moduleDoc: phq9Module.doc,
+    moduleData: phq9Module.data,
+    programId: phq9Module.program._id as Types.ObjectId,
+    status: 'assigned',
+    dueAt: daysAgo(-2),
+    questions: phq9Module.questions,
+    bands: phq9Module.bands,
+  })
+  console.log('  Recurring chain: 3 completed + 1 active PHQ-9 for patient2')
+
+  // ── Self-initiated assignments (source: 'self', therapist: null) ──
+  const openModulesForSelf = modules.filter((m) => m.data.accessPolicy === 'open')
+  const selfPatientId = users.patients[2] // patient3
+  const selfMod1 = openModulesForSelf[0] ?? phq9Module
+  const selfMod2 = openModulesForSelf.length > 1 ? openModulesForSelf[1] : selfMod1
+
+  // Self-initiated: completed with submitted attempt
+  const selfCompletedAssignment = await ModuleAssignment.create({
+    user: selfPatientId,
+    therapist: null,
+    program: selfMod1.program._id,
+    module: selfMod1.doc._id,
+    moduleType: selfMod1.data.type,
+    status: 'completed',
+    source: 'self' as const,
+    createdAt: daysAgo(10),
+    updatedAt: daysAgo(9),
+  })
+  seededAssignments.push({
+    _id: selfCompletedAssignment._id as Types.ObjectId,
+    userId: selfPatientId,
+    therapistId: null as unknown as Types.ObjectId,
+    moduleDoc: selfMod1.doc,
+    moduleData: selfMod1.data,
+    programId: selfMod1.program._id as Types.ObjectId,
+    status: 'completed',
+    questions: selfMod1.questions,
+    bands: selfMod1.bands,
+  })
+
+  // Self-initiated: in-progress with started attempt
+  const selfInProgressAssignment = await ModuleAssignment.create({
+    user: selfPatientId,
+    therapist: null,
+    program: selfMod2.program._id,
+    module: selfMod2.doc._id,
+    moduleType: selfMod2.data.type,
+    status: 'in_progress',
+    source: 'self' as const,
+    createdAt: daysAgo(3),
+    updatedAt: daysAgo(2),
+  })
+  seededAssignments.push({
+    _id: selfInProgressAssignment._id as Types.ObjectId,
+    userId: selfPatientId,
+    therapistId: null as unknown as Types.ObjectId,
+    moduleDoc: selfMod2.doc,
+    moduleData: selfMod2.data,
+    programId: selfMod2.program._id as Types.ObjectId,
+    status: 'in_progress',
+    questions: selfMod2.questions,
+    bands: selfMod2.bands,
+  })
+
+  // Self-initiated: another completed for patient4
+  const selfPatient4Id = users.patients[3]
+  const selfCompletedAssignment2 = await ModuleAssignment.create({
+    user: selfPatient4Id,
+    therapist: null,
+    program: selfMod1.program._id,
+    module: selfMod1.doc._id,
+    moduleType: selfMod1.data.type,
+    status: 'completed',
+    source: 'self' as const,
+    createdAt: daysAgo(5),
+    updatedAt: daysAgo(4),
+  })
+  seededAssignments.push({
+    _id: selfCompletedAssignment2._id as Types.ObjectId,
+    userId: selfPatient4Id,
+    therapistId: null as unknown as Types.ObjectId,
+    moduleDoc: selfMod1.doc,
+    moduleData: selfMod1.data,
+    programId: selfMod1.program._id as Types.ObjectId,
+    status: 'completed',
+    questions: selfMod1.questions,
+    bands: selfMod1.bands,
+  })
+  console.log('  Self-initiated: 3 assignments (2 completed, 1 in-progress)')
+
+  // ── Needs-attention scenarios ──
+  // Use therapist1's patients for needs-attention so they show up in their dashboard
+  const attentionPatients = users.patients.filter(
+    (p) => String(users.patientTherapistMap.get(String(p))) === String(therapist1Id)
+      && String(p) !== String(patient1Id)
+  )
+
+  // 1. Severe PHQ-9 (score 20+) — patient with severe depression
+  const severePatientId = attentionPatients[0] ?? users.patients[4]
+  const severeAssignment = await ModuleAssignment.create({
+    user: severePatientId,
+    therapist: therapist1Id,
+    program: phq9Module.program._id,
+    module: phq9Module.doc._id,
+    moduleType: 'questionnaire',
+    status: 'completed',
+    source: 'therapist' as const,
+    dueAt: daysAgo(2),
+    createdAt: daysAgo(10),
+    updatedAt: daysAgo(1),
+  })
+  seededAssignments.push({
+    _id: severeAssignment._id as Types.ObjectId,
+    userId: severePatientId,
+    therapistId: therapist1Id,
+    moduleDoc: phq9Module.doc,
+    moduleData: phq9Module.data,
+    programId: phq9Module.program._id as Types.ObjectId,
+    status: 'completed',
+    dueAt: daysAgo(2),
+    questions: phq9Module.questions,
+    bands: phq9Module.bands,
+  })
+
+  // 2. Regression — patient with score going up (8 then 14)
+  const regressionPatientId = attentionPatients[1] ?? users.patients[5]
+  const regressionAssignment1 = await ModuleAssignment.create({
+    user: regressionPatientId,
+    therapist: therapist1Id,
+    program: phq9Module.program._id,
+    module: phq9Module.doc._id,
+    moduleType: 'questionnaire',
+    status: 'completed',
+    source: 'therapist' as const,
+    createdAt: daysAgo(21),
+    updatedAt: daysAgo(19),
+  })
+  const regressionAssignment2 = await ModuleAssignment.create({
+    user: regressionPatientId,
+    therapist: therapist1Id,
+    program: phq9Module.program._id,
+    module: phq9Module.doc._id,
+    moduleType: 'questionnaire',
+    status: 'completed',
+    source: 'therapist' as const,
+    createdAt: daysAgo(7),
+    updatedAt: daysAgo(5),
+  })
+  seededAssignments.push(
+    {
+      _id: regressionAssignment1._id as Types.ObjectId,
+      userId: regressionPatientId,
+      therapistId: therapist1Id,
+      moduleDoc: phq9Module.doc,
+      moduleData: phq9Module.data,
+      programId: phq9Module.program._id as Types.ObjectId,
+      status: 'completed',
+      questions: phq9Module.questions,
+      bands: phq9Module.bands,
+    },
+    {
+      _id: regressionAssignment2._id as Types.ObjectId,
+      userId: regressionPatientId,
+      therapistId: therapist1Id,
+      moduleDoc: phq9Module.doc,
+      moduleData: phq9Module.data,
+      programId: phq9Module.program._id as Types.ObjectId,
+      status: 'completed',
+      questions: phq9Module.questions,
+      bands: phq9Module.bands,
+    },
+  )
+
+  // 3. Overdue assignment (5 days overdue, still 'assigned')
+  const overduePatientId = attentionPatients[2] ?? users.patients[6]
+  const overdueAssignment = await ModuleAssignment.create({
+    user: overduePatientId,
+    therapist: therapist1Id,
+    program: phq9Module.program._id,
+    module: phq9Module.doc._id,
+    moduleType: 'questionnaire',
+    status: 'assigned',
+    source: 'therapist' as const,
+    dueAt: daysAgo(5), // 5 days overdue
+    notes: 'Please complete before our next session',
+    createdAt: daysAgo(12),
+    updatedAt: daysAgo(12),
+  })
+  seededAssignments.push({
+    _id: overdueAssignment._id as Types.ObjectId,
+    userId: overduePatientId,
+    therapistId: therapist1Id,
+    moduleDoc: phq9Module.doc,
+    moduleData: phq9Module.data,
+    programId: phq9Module.program._id as Types.ObjectId,
+    status: 'assigned',
+    dueAt: daysAgo(5),
+    questions: phq9Module.questions,
+    bands: phq9Module.bands,
+  })
+
+  // 4. First submission trigger — patient with exactly one submitted attempt
+  const firstSubmitPatientId = attentionPatients[3] ?? users.patients[7]
+  const firstSubmitAssignment = await ModuleAssignment.create({
+    user: firstSubmitPatientId,
+    therapist: therapist1Id,
+    program: phq9Module.program._id,
+    module: phq9Module.doc._id,
+    moduleType: 'questionnaire',
+    status: 'completed',
+    source: 'therapist' as const,
+    dueAt: daysAgo(1),
+    createdAt: daysAgo(7),
+    updatedAt: daysAgo(1),
+  })
+  seededAssignments.push({
+    _id: firstSubmitAssignment._id as Types.ObjectId,
+    userId: firstSubmitPatientId,
+    therapistId: therapist1Id,
+    moduleDoc: phq9Module.doc,
+    moduleData: phq9Module.data,
+    programId: phq9Module.program._id as Types.ObjectId,
+    status: 'completed',
+    dueAt: daysAgo(1),
+    questions: phq9Module.questions,
+    bands: phq9Module.bands,
+  })
+  console.log('  Needs-attention: severe, regression, overdue, first-submission scenarios')
 
   const statusCounts = seededAssignments.reduce(
     (acc, a) => {
@@ -1414,6 +1703,314 @@ const seedAttempts = async (
       { $set: { status: 'completed' } }
     )
   }
+
+  // ── Attempts for new unified-practice scenarios ──
+  const phq9Module = modules.find((m) => m.data.title === 'PHQ-9')!
+  const openModulesForAttempts = modules.filter((m) => m.data.accessPolicy === 'open')
+
+  // --- Recurring chain attempts (3 completed PHQ-9 for patient2 with varying scores) ---
+  const patient2Id = users.patients[1]
+  const patient2TherapistId = users.patientTherapistMap.get(String(patient2Id))
+  const recurringTherapistId = patient2TherapistId ?? therapist1Id
+  const recurringScores = [14, 12, 10] // improvement over 3 weeks
+
+  // Find recurring chain assignments for patient2
+  const recurringAssignments = assignments.filter(
+    (a) => String(a.userId) === String(patient2Id)
+      && a.moduleData.title === 'PHQ-9'
+      && a.status === 'completed'
+  ).slice(-3) // last 3 are the recurring ones we just created
+
+  for (let w = 0; w < Math.min(3, recurringAssignments.length); w++) {
+    const ra = recurringAssignments[w]
+    const targetScore = recurringScores[w]
+    const startedAt = daysAgo(26 - w * 7)
+    const durationMins = randInt(5, 12)
+    const completedAt = minsAfter(startedAt, durationMins)
+    const iteration = getIteration(patient2Id, phq9Module.doc._id as Types.ObjectId)
+
+    // Build answers that sum to the target score
+    const answers = phq9Module.questions.map((q, qi) => {
+      // Distribute score roughly evenly, with remainder on first questions
+      const perQuestion = Math.floor(targetScore / phq9Module.questions.length)
+      const remainder = targetScore - perQuestion * phq9Module.questions.length
+      const qScore = Math.min(
+        q.choices[q.choices.length - 1].score,
+        perQuestion + (qi < remainder ? 1 : 0),
+      )
+      const closestChoice = q.choices.reduce((prev, curr) =>
+        Math.abs(curr.score - qScore) < Math.abs(prev.score - qScore) ? curr : prev
+      )
+      return {
+        question: q._id,
+        chosenScore: closestChoice.score,
+        chosenIndex: q.choices.indexOf(closestChoice),
+        chosenText: closestChoice.text,
+      }
+    })
+    const actualScore = answers.reduce((sum, a) => sum + a.chosenScore, 0)
+    const band = phq9Module.bands.find((b) => actualScore >= b.min && actualScore <= b.max)
+
+    const attempt = await ModuleAttempt.create({
+      user: patient2Id,
+      therapist: recurringTherapistId,
+      program: phq9Module.program._id,
+      module: phq9Module.doc._id,
+      moduleType: 'questionnaire',
+      status: 'submitted',
+      startedAt,
+      completedAt,
+      lastInteractionAt: completedAt,
+      durationSecs: durationMins * 60,
+      iteration,
+      contentVersion: 1,
+      answers,
+      totalScore: actualScore,
+      scoreBandLabel: band?.label ?? 'Unknown',
+      weekStart: getWeekStart(startedAt),
+      moduleSnapshot: buildSnapshot(phq9Module.doc, phq9Module.questions),
+    })
+    await ModuleAssignment.findByIdAndUpdate(ra._id, { latestAttempt: attempt._id })
+    totalCreated++
+  }
+  console.log('  Recurring chain attempts: 3 submitted PHQ-9 (scores ~14, ~12, ~10)')
+
+  // --- Self-initiated attempts ---
+  const selfPatientId = users.patients[2]
+  const selfMod1 = openModulesForAttempts[0] ?? phq9Module
+  const selfMod2 = openModulesForAttempts.length > 1 ? openModulesForAttempts[1] : selfMod1
+
+  // Self-initiated completed attempt
+  const selfCompletedAssignments = assignments.filter(
+    (a) => String(a.userId) === String(selfPatientId) && a.status === 'completed'
+      && a.therapistId === null
+  )
+  if (selfCompletedAssignments.length > 0) {
+    const sca = selfCompletedAssignments[0]
+    const startedAt = daysAgo(9)
+    const durationMins = randInt(5, 15)
+    const completedAt = minsAfter(startedAt, durationMins)
+    const iteration = getIteration(selfPatientId, sca.moduleDoc._id as Types.ObjectId)
+
+    const attemptData: Record<string, unknown> = {
+      user: selfPatientId,
+      program: sca.programId,
+      module: sca.moduleDoc._id,
+      moduleType: sca.moduleData.type,
+      status: 'submitted',
+      startedAt,
+      completedAt,
+      lastInteractionAt: completedAt,
+      durationSecs: durationMins * 60,
+      iteration,
+      contentVersion: 1,
+    }
+    if (sca.moduleData.type === 'questionnaire' && sca.questions.length > 0) {
+      const { answers, totalScore, scoreBandLabel } = generateAnswers(sca.questions, sca.bands)
+      attemptData.answers = answers
+      attemptData.totalScore = totalScore
+      attemptData.scoreBandLabel = scoreBandLabel
+      attemptData.weekStart = getWeekStart(startedAt)
+      attemptData.moduleSnapshot = buildSnapshot(sca.moduleDoc, sca.questions)
+    }
+    const attempt = await ModuleAttempt.create(attemptData)
+    await ModuleAssignment.findByIdAndUpdate(sca._id, { latestAttempt: attempt._id })
+    totalCreated++
+  }
+
+  // Self-initiated in-progress attempt
+  const selfInProgressAssignments = assignments.filter(
+    (a) => String(a.userId) === String(selfPatientId) && a.status === 'in_progress'
+      && a.therapistId === null
+  )
+  if (selfInProgressAssignments.length > 0) {
+    const sia = selfInProgressAssignments[0]
+    const startedAt = daysAgo(2)
+    const iteration = getIteration(selfPatientId, sia.moduleDoc._id as Types.ObjectId)
+
+    const attemptData: Record<string, unknown> = {
+      user: selfPatientId,
+      program: sia.programId,
+      module: sia.moduleDoc._id,
+      moduleType: sia.moduleData.type,
+      status: 'started',
+      startedAt,
+      lastInteractionAt: minsAfter(startedAt, randInt(1, 5)),
+      iteration,
+      contentVersion: 1,
+    }
+    if (sia.moduleData.type === 'questionnaire' && sia.questions.length > 0) {
+      const answeredCount = randInt(1, Math.max(1, sia.questions.length - 1))
+      const partialAnswers = sia.questions.slice(0, answeredCount).map((q) => {
+        const chosenIndex = randInt(0, q.choices.length - 1)
+        const choice = q.choices[chosenIndex]
+        return { question: q._id, chosenScore: choice.score, chosenIndex, chosenText: choice.text }
+      })
+      attemptData.answers = partialAnswers
+      attemptData.moduleSnapshot = buildSnapshot(sia.moduleDoc, sia.questions)
+    }
+    const attempt = await ModuleAttempt.create(attemptData)
+    await ModuleAssignment.findByIdAndUpdate(sia._id, { latestAttempt: attempt._id })
+    totalCreated++
+  }
+  console.log('  Self-initiated attempts: 1 submitted + 1 started')
+
+  // --- Needs-attention attempts ---
+  const attentionPatients = users.patients.filter(
+    (p) => String(users.patientTherapistMap.get(String(p))) === String(therapist1Id)
+      && String(p) !== String(patient1Id)
+  )
+
+  // 1. Severe PHQ-9 (score 22 — in Severe band 20-27)
+  const severePatientId = attentionPatients[0] ?? users.patients[4]
+  const severeAssignmentMatch = assignments.find(
+    (a) => String(a.userId) === String(severePatientId)
+      && a.moduleData.title === 'PHQ-9'
+      && a.status === 'completed'
+  )
+  if (severeAssignmentMatch) {
+    const startedAt = daysAgo(1)
+    const durationMins = randInt(8, 15)
+    const completedAt = minsAfter(startedAt, durationMins)
+    const iteration = getIteration(severePatientId, phq9Module.doc._id as Types.ObjectId)
+
+    // Build answers that sum to 22 (Severe band)
+    const severeAnswers = phq9Module.questions.map((q, qi) => {
+      // 22 / 9 ≈ 2.4 per question; use 3 for first 4 questions, 2 for remaining 5
+      const qScore = qi < 4 ? 3 : 2
+      const closestChoice = q.choices.reduce((prev, curr) =>
+        Math.abs(curr.score - qScore) < Math.abs(prev.score - qScore) ? curr : prev
+      )
+      return {
+        question: q._id,
+        chosenScore: closestChoice.score,
+        chosenIndex: q.choices.indexOf(closestChoice),
+        chosenText: closestChoice.text,
+      }
+    })
+    const severeTotal = severeAnswers.reduce((sum, a) => sum + a.chosenScore, 0)
+    const severeBand = phq9Module.bands.find((b) => severeTotal >= b.min && severeTotal <= b.max)
+
+    const attempt = await ModuleAttempt.create({
+      user: severePatientId,
+      therapist: therapist1Id,
+      program: phq9Module.program._id,
+      module: phq9Module.doc._id,
+      moduleType: 'questionnaire',
+      status: 'submitted',
+      startedAt,
+      completedAt,
+      lastInteractionAt: completedAt,
+      durationSecs: durationMins * 60,
+      iteration,
+      contentVersion: 1,
+      answers: severeAnswers,
+      totalScore: severeTotal,
+      scoreBandLabel: severeBand?.label ?? 'Severe',
+      weekStart: getWeekStart(startedAt),
+      moduleSnapshot: buildSnapshot(phq9Module.doc, phq9Module.questions),
+    })
+    await ModuleAssignment.findByIdAndUpdate(severeAssignmentMatch._id, { latestAttempt: attempt._id })
+    totalCreated++
+  }
+
+  // 2. Regression — two attempts: score 8 then 14
+  const regressionPatientId = attentionPatients[1] ?? users.patients[5]
+  const regressionAssignmentMatches = assignments.filter(
+    (a) => String(a.userId) === String(regressionPatientId)
+      && a.moduleData.title === 'PHQ-9'
+      && a.status === 'completed'
+  ).slice(-2)
+
+  const regressionScores = [8, 14]
+  for (let ri = 0; ri < Math.min(2, regressionAssignmentMatches.length); ri++) {
+    const ra = regressionAssignmentMatches[ri]
+    const targetScore = regressionScores[ri]
+    const startedAt = daysAgo(ri === 0 ? 19 : 5)
+    const durationMins = randInt(5, 12)
+    const completedAt = minsAfter(startedAt, durationMins)
+    const iteration = getIteration(regressionPatientId, phq9Module.doc._id as Types.ObjectId)
+
+    const answers = phq9Module.questions.map((q, qi) => {
+      const perQ = Math.floor(targetScore / phq9Module.questions.length)
+      const remainder = targetScore - perQ * phq9Module.questions.length
+      const qScore = Math.min(
+        q.choices[q.choices.length - 1].score,
+        perQ + (qi < remainder ? 1 : 0),
+      )
+      const closestChoice = q.choices.reduce((prev, curr) =>
+        Math.abs(curr.score - qScore) < Math.abs(prev.score - qScore) ? curr : prev
+      )
+      return {
+        question: q._id,
+        chosenScore: closestChoice.score,
+        chosenIndex: q.choices.indexOf(closestChoice),
+        chosenText: closestChoice.text,
+      }
+    })
+    const actualScore = answers.reduce((sum, a) => sum + a.chosenScore, 0)
+    const band = phq9Module.bands.find((b) => actualScore >= b.min && actualScore <= b.max)
+
+    const attempt = await ModuleAttempt.create({
+      user: regressionPatientId,
+      therapist: therapist1Id,
+      program: phq9Module.program._id,
+      module: phq9Module.doc._id,
+      moduleType: 'questionnaire',
+      status: 'submitted',
+      startedAt,
+      completedAt,
+      lastInteractionAt: completedAt,
+      durationSecs: durationMins * 60,
+      iteration,
+      contentVersion: 1,
+      answers,
+      totalScore: actualScore,
+      scoreBandLabel: band?.label ?? 'Unknown',
+      weekStart: getWeekStart(startedAt),
+      moduleSnapshot: buildSnapshot(phq9Module.doc, phq9Module.questions),
+    })
+    await ModuleAssignment.findByIdAndUpdate(ra._id, { latestAttempt: attempt._id })
+    totalCreated++
+  }
+
+  // 3. First submission — exactly one submitted attempt for a patient
+  const firstSubmitPatientId = attentionPatients[3] ?? users.patients[7]
+  const firstSubmitMatch = assignments.find(
+    (a) => String(a.userId) === String(firstSubmitPatientId)
+      && a.moduleData.title === 'PHQ-9'
+      && a.status === 'completed'
+  )
+  if (firstSubmitMatch) {
+    const startedAt = daysAgo(1)
+    const durationMins = randInt(6, 12)
+    const completedAt = minsAfter(startedAt, durationMins)
+    const iteration = getIteration(firstSubmitPatientId, phq9Module.doc._id as Types.ObjectId)
+    const { answers, totalScore, scoreBandLabel } = generateAnswers(phq9Module.questions, phq9Module.bands)
+
+    const attempt = await ModuleAttempt.create({
+      user: firstSubmitPatientId,
+      therapist: therapist1Id,
+      program: phq9Module.program._id,
+      module: phq9Module.doc._id,
+      moduleType: 'questionnaire',
+      status: 'submitted',
+      startedAt,
+      completedAt,
+      lastInteractionAt: completedAt,
+      durationSecs: durationMins * 60,
+      iteration,
+      contentVersion: 1,
+      answers,
+      totalScore,
+      scoreBandLabel,
+      weekStart: getWeekStart(startedAt),
+      moduleSnapshot: buildSnapshot(phq9Module.doc, phq9Module.questions),
+    })
+    await ModuleAssignment.findByIdAndUpdate(firstSubmitMatch._id, { latestAttempt: attempt._id })
+    totalCreated++
+  }
+  console.log('  Needs-attention attempts: severe, regression (8→14), first-submission')
 
   // Count by status
   const allAttempts = await ModuleAttempt.aggregate([
