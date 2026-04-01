@@ -73,6 +73,21 @@ export const startAttempt = async (req: Request, res: Response) => {
         })
         return
       }
+    } else {
+      // Open module with no assignment provided: auto-discover or auto-create
+      assignment = await findActiveAssignment(userId, mod._id as Types.ObjectId)
+      if (!assignment) {
+        const created = await ModuleAssignment.create({
+          user: userId,
+          therapist: null,
+          program: mod.program,
+          module: mod._id,
+          moduleType: mod.type,
+          status: 'in_progress',
+          source: 'self',
+        })
+        assignment = await ModuleAssignment.findById(created._id).lean()
+      }
     }
 
     const me = await User.findById(userId, 'therapist')
