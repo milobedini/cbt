@@ -248,17 +248,20 @@ export type AssignmentRecurrence = {
   freq: 'weekly' | 'monthly' | 'none'
   interval?: number
 }
+export type AssignmentSource = 'therapist' | 'self'
 
 export type ModuleAssignment = {
   _id: string
   user: string
-  therapist: string
+  therapist?: string // null for self-initiated
   program: string
   module: string
   moduleType: ModuleType
   status: AssignmentStatus
+  source: AssignmentSource
   dueAt?: string
   recurrence?: AssignmentRecurrence
+  recurrenceGroupId?: string
   latestAttempt?: string
   notes?: string
   createdAt: string
@@ -504,6 +507,108 @@ export type MyAssignmentView = {
 export type MyAssignmentsResponse = {
   success: boolean
   assignments: MyAssignmentView[]
+}
+
+// ==================================
+// API: Unified Practice
+// ==================================
+export type PracticeItemStatus = 'not_started' | 'in_progress' | 'completed'
+
+export type PracticeLatestAttempt = {
+  attemptId: string
+  status: AttemptStatus
+  totalScore?: number
+  scoreBandLabel?: string
+  completedAt?: string
+  iteration: number
+}
+
+export type PracticeItem = {
+  assignmentId: string
+  moduleId: string
+  moduleTitle: string
+  moduleType: ModuleType
+  programTitle: string
+  source: AssignmentSource
+  therapistName?: string
+  status: PracticeItemStatus
+  dueAt?: string
+  recurrence?: AssignmentRecurrence
+  notes?: string
+  percentComplete: number
+  attemptCount: number
+  latestAttempt?: PracticeLatestAttempt
+}
+
+export type PracticeResponse = {
+  success: boolean
+  today: PracticeItem[]
+  thisWeek: PracticeItem[]
+  upcoming: PracticeItem[]
+  recentlyCompleted: PracticeItem[]
+}
+
+export type PracticeHistoryQuery = {
+  moduleId?: string
+  moduleType?: ModuleType
+  cursor?: string
+  limit?: number
+}
+
+export type PracticeHistoryResponse = {
+  success: boolean
+  items: PracticeItem[]
+  nextCursor: string | null
+}
+
+// ==================================
+// API: Patient Practice for Therapist
+// ==================================
+export type SparklineMap = Record<string, number[]> // moduleId to last 5 scores
+
+export type PatientPracticeResponse = PracticeResponse & {
+  sparklines: SparklineMap
+}
+
+// ==================================
+// API: Therapist Review
+// ==================================
+export type AttentionReason =
+  | 'severe_score'
+  | 'score_regression'
+  | 'overdue'
+  | 'first_submission'
+export type AttentionPriority = 'high' | 'medium' | 'low'
+
+export type ReviewItem = PracticeItem & {
+  patientId: string
+  patientName: string
+  attentionReason?: AttentionReason
+  attentionPriority?: AttentionPriority
+}
+
+export type ReviewGroupBy = 'date' | 'patient' | 'module'
+
+export type ReviewFilters = {
+  sort?: SortOption
+  groupBy?: ReviewGroupBy
+  patientId?: string
+  moduleId?: string
+  severity?: SeverityOption
+  dateFrom?: string
+  dateTo?: string
+  cursor?: string
+  limit?: number
+}
+
+export type ReviewResponse = {
+  success: boolean
+  needsAttention: ReviewItem[]
+  submissions: {
+    items: ReviewItem[]
+    nextCursor: string | null
+    total: number
+  }
 }
 
 export type UpdateAssignmentInput = {
