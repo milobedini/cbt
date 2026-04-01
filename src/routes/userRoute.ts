@@ -18,6 +18,12 @@ import {
 import { getAvailableModules } from "../controllers/moduleController";
 import { getMyAssignments } from "../controllers/assignmentsController";
 import { getTherapistDashboard } from "../controllers/therapistDashboardController";
+import {
+  getMyPractice,
+  getMyPracticeHistory,
+  getPatientPractice,
+} from "../controllers/practiceController";
+import { getTherapistReview } from "../controllers/reviewController";
 
 const router = express.Router();
 
@@ -48,5 +54,15 @@ router.get("/therapist/attempts/latest", getTherapistLatest);
 
 // ✅ Therapist: one patient’s timeline for one module
 router.get("/therapist/patients/:patientId/timeline", getPatientModuleTimeline);
+
+// ✅ Patient: unified practice view
+router.get("/practice", getMyPractice);
+router.get("/practice/history", getMyPracticeHistory);
+
+// ✅ Therapist: patient practice view
+router.get("/therapist/patients/:patientId/practice", getPatientPractice);
+
+// ✅ Therapist: review feed
+router.get("/therapist/review", getTherapistReview);
 
 export default router;
