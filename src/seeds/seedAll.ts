@@ -1778,7 +1778,7 @@ const seedAttempts = async (
   // --- Self-initiated attempts ---
   const selfPatientId = users.patients[2]
   const selfMod1 = openModulesForAttempts[0] ?? phq9Module
-  const selfMod2 = openModulesForAttempts.length > 1 ? openModulesForAttempts[1] : selfMod1
+
 
   // Self-initiated completed attempt
   const selfCompletedAssignments = assignments.filter(
