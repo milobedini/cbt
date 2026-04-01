@@ -1,10 +1,11 @@
 import mongoose, { Schema, Document, Types } from 'mongoose'
 
 type AssignmentStatus = 'assigned' | 'in_progress' | 'completed' | 'cancelled'
+type AssignmentSource = 'therapist' | 'self'
 
 interface IModuleAssignment extends Document {
   user: Types.ObjectId
-  therapist: Types.ObjectId
+  therapist?: Types.ObjectId // null for self-initiated
   program: Types.ObjectId
   module: Types.ObjectId
   moduleType:
@@ -13,12 +14,14 @@ interface IModuleAssignment extends Document {
     | 'activity_diary'
 
   status: AssignmentStatus
+  source: AssignmentSource
   createdAt: Date
   updatedAt: Date
 
   dueAt?: Date
-  recurrence?: { freq: 'weekly' | 'monthly' | 'none'; interval?: number } // keep simple, or store RRULE string
-  latestAttempt?: Types.ObjectId // denormalized pointer
+  recurrence?: { freq: 'weekly' | 'monthly' | 'none'; interval?: number }
+  recurrenceGroupId?: Types.ObjectId // links recurring chain
+  latestAttempt?: Types.ObjectId
   notes?: string
 }
 
@@ -33,8 +36,8 @@ const ModuleAssignmentSchema = new Schema<IModuleAssignment>(
     therapist: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
       index: true,
+      default: null,
     },
     program: {
       type: Schema.Types.ObjectId,
@@ -60,6 +63,11 @@ const ModuleAssignmentSchema = new Schema<IModuleAssignment>(
       default: 'assigned',
       index: true,
     },
+    source: {
+      type: String,
+      enum: ['therapist', 'self'],
+      default: 'therapist',
+    },
     dueAt: { type: Date, index: true },
     recurrence: {
       freq: {
@@ -69,6 +77,7 @@ const ModuleAssignmentSchema = new Schema<IModuleAssignment>(
       },
       interval: { type: Number, default: 1 },
     },
+    recurrenceGroupId: { type: Schema.Types.ObjectId, default: null },
     latestAttempt: { type: Schema.Types.ObjectId, ref: 'ModuleAttempt' },
     notes: String,
   },
@@ -80,4 +89,4 @@ export default mongoose.model<IModuleAssignment>(
   'ModuleAssignment',
   ModuleAssignmentSchema
 )
-export type { IModuleAssignment }
+export type { IModuleAssignment, AssignmentSource }
