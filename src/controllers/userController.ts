@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import mongoose from 'mongoose'
-import User, { UserRole } from '../models/userModel'
+import User, { type IUser, UserRole } from '../models/userModel'
 import ModuleAttempt from '../models/moduleAttemptModel'
 import { errorHandler } from '../utils/errorHandler'
 import { isValidObjectId, Types } from 'mongoose'
@@ -347,15 +347,40 @@ const getClients = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    const patients = await User.find(
-      { _id: { $in: user.patients } },
-      '_id username email name therapist',
-    )
-
-    if (!patients || !patients.length) {
+    if (!user.patients?.length) {
       res.status(200).json([])
       return
     }
+
+    const match: mongoose.FilterQuery<IUser> = {
+      _id: { $in: user.patients },
+    }
+
+    const q = (req.query.q as string | undefined)?.trim()
+    if (q) {
+      const escaped = escapeRegex(q)
+      match.$or = [
+        { username: { $regex: escaped, $options: 'i' } },
+        { email: { $regex: escaped, $options: 'i' } },
+        { name: { $regex: escaped, $options: 'i' } },
+      ]
+    }
+
+    const sortParam = (req.query.sort as string | undefined)?.trim()
+    const allowedSortFields = new Set(['name', 'username', 'email'])
+    let sort: Record<string, mongoose.SortOrder> = { name: 1 }
+    if (sortParam) {
+      const desc = sortParam.startsWith('-')
+      const field = desc ? sortParam.slice(1) : sortParam
+      if (allowedSortFields.has(field)) {
+        sort = { [field]: desc ? -1 : 1 }
+      }
+    }
+
+    const patients = await User.find(match, '_id username email name therapist')
+      .sort(sort)
+      .lean()
+
     res.status(200).json(patients)
   } catch (error) {
     errorHandler(res, error)
