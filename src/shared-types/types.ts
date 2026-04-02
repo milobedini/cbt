@@ -47,6 +47,11 @@ export type UpdateNameInput = {
   userId: string
 }
 
+export type ChangePasswordInput = {
+  currentPassword: string
+  newPassword: string
+}
+
 export type VerifyInput = { verificationCode: string }
 
 export type PatientsResponse = AuthUser[]

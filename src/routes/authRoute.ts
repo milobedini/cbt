@@ -6,6 +6,7 @@ import {
   forgotPassword,
   resetPassword,
   updateName,
+  changePassword,
 } from '../controllers/authController'
 import authenticateUser from '../middleware/authMiddleware'
 import rateLimit from 'express-rate-limit'
@@ -36,5 +37,6 @@ router.post('/logout', logoutUser)
 router.post('/forgot-password', authLimiter, forgotPassword)
 router.post('/reset-password/:token', authLimiter, resetPassword)
 router.put('/update-name', authenticateUser, updateName)
+router.put('/change-password', authenticateUser, changePassword)
 
 export default router

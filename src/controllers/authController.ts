@@ -299,6 +299,11 @@ const updateName = async (req: Request, res: Response): Promise<void> => {
     return
   }
 
+  if (!newName || typeof newName !== 'string' || newName.trim().length === 0) {
+    res.status(400).json({ message: 'Name is required!' })
+    return
+  }
+
   try {
     const user = await User.findById(userId)
     if (!user) {
@@ -306,7 +311,7 @@ const updateName = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    user.name = newName
+    user.name = newName.trim()
     await user.save()
 
     res.status(200).json({
@@ -322,6 +327,51 @@ const updateName = async (req: Request, res: Response): Promise<void> => {
   }
 }
 
+const changePassword = async (req: Request, res: Response): Promise<void> => {
+  const { currentPassword, newPassword } = req.body
+  const userId = req.user?._id
+
+  if (!userId) {
+    res.status(401).json({ message: 'Not authorized' })
+    return
+  }
+
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ message: 'Current password and new password are required!' })
+    return
+  }
+
+  if (newPassword.length < 8) {
+    res.status(400).json({ message: 'New password must be at least 8 characters long!' })
+    return
+  }
+
+  try {
+    const user = await User.findById(userId).select('+password')
+    if (!user) {
+      res.status(404).json({ message: 'User not found!' })
+      return
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password)
+    if (!isMatch) {
+      res.status(401).json({ message: 'Current password is incorrect!' })
+      return
+    }
+
+    const salt = await bcrypt.genSalt(10)
+    user.password = await bcrypt.hash(newPassword, salt)
+    await user.save()
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully!',
+    })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
 export {
   registerUser,
   verifyEmail,
@@ -330,4 +380,5 @@ export {
   forgotPassword,
   resetPassword,
   updateName,
+  changePassword,
 }
