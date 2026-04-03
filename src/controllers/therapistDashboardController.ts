@@ -308,17 +308,24 @@ export const getTherapistDashboard = async (
         active: [],
         completedThisWeek: [],
       };
-      const overdueCount = patientAssignments.active.filter(
-        (a) => a.dueAt && new Date(a.dueAt) < now,
-      ).length;
+
+      // Partition active assignments
+      let overdueCount = 0;
+      let pendingThisWeekCount = 0;
+      for (const a of patientAssignments.active) {
+        if (a.dueAt && new Date(a.dueAt) < now) {
+          overdueCount++;
+        } else if (a.dueAt && new Date(a.dueAt) >= now && new Date(a.dueAt) < weekEnd) {
+          pendingThisWeekCount++;
+        }
+        // Assignments with dueAt >= weekEnd or no dueAt are excluded from summary
+      }
       totalOverdueAssignments += overdueCount;
 
       const assignments: DashboardAssignmentSummary = {
-        total:
-          patientAssignments.active.length +
-          patientAssignments.completedThisWeek.length,
-        completed: patientAssignments.completedThisWeek.length,
-        overdue: overdueCount,
+        completedThisWeek: patientAssignments.completedThisWeek.length,
+        overdueTotal: overdueCount,
+        pendingThisWeek: pendingThisWeekCount,
       };
 
       // Last active
@@ -383,8 +390,8 @@ export const getTherapistDashboard = async (
       const bSevere = b.reasons.includes("severe_score") ? 1 : 0;
       if (bSevere !== aSevere) return bSevere - aSevere;
 
-      if (b.assignments.overdue !== a.assignments.overdue) {
-        return b.assignments.overdue - a.assignments.overdue;
+      if (b.assignments.overdueTotal !== a.assignments.overdueTotal) {
+        return b.assignments.overdueTotal - a.assignments.overdueTotal;
       }
 
       const aTime = a.lastActive ? new Date(a.lastActive).getTime() : 0;
