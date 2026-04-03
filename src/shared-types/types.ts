@@ -865,9 +865,9 @@ export type DashboardScorePreview = {
 }
 
 export type DashboardAssignmentSummary = {
-  total: number
-  completed: number
-  overdue: number
+  completedThisWeek: number
+  overdueTotal: number
+  pendingThisWeek: number
 }
 
 export type DashboardClientItem = {
