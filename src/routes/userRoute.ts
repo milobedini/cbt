@@ -14,6 +14,7 @@ import {
   getTherapistAttemptModules,
   getTherapistLatest,
   getPatientModuleTimeline,
+  getPatientModules,
 } from "../controllers/attemptsController";
 import { getAvailableModules } from "../controllers/moduleController";
 import { getMyAssignments } from "../controllers/assignmentsController";
@@ -54,6 +55,9 @@ router.get("/therapist/attempts/latest", getTherapistLatest);
 
 // ✅ Therapist: one patient’s timeline for one module
 router.get("/therapist/patients/:patientId/timeline", getPatientModuleTimeline);
+
+// ✅ Therapist: distinct modules a patient has attempts for
+router.get("/therapist/patients/:patientId/modules", getPatientModules);
 
 // ✅ Patient: unified practice view
 router.get("/practice", getMyPractice);

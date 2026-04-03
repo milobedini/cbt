@@ -817,6 +817,7 @@ export type PatientModuleTimelineQuery = {
   moduleId?: string
   limit?: number
   cursor?: Cursor
+  severity?: SeverityOption
   /**
    * Status filter:
    * - 'submitted' (default) = completed timeline (sorted by completedAt)
@@ -831,6 +832,11 @@ export type PatientModuleTimelineQuery = {
     | `${AttemptStatus},${string}`
     | 'all'
     | string
+}
+
+export type PatientModulesResponse = {
+  success: boolean
+  modules: { _id: string; title: string }[]
 }
 
 export type PatientModuleTimelineResponse = {

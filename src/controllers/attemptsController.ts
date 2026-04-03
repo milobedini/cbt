@@ -1056,11 +1056,13 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
       cursor,
       status,
       moduleId,
+      severity,
     } = req.query as {
       limit?: string
       cursor?: string
       status?: string
       moduleId?: string
+      severity?: string
     }
 
     const canSee =
@@ -1091,6 +1093,14 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
     if (rawStatuses.length > 0) {
       findQuery.status =
         rawStatuses.length === 1 ? rawStatuses[0] : { $in: rawStatuses }
+    }
+
+    if (severity === 'severe') {
+      findQuery.scoreBandLabel = { $regex: /severe|high/i }
+    } else if (severity === 'moderate') {
+      findQuery.scoreBandLabel = { $regex: /moderate/i }
+    } else if (severity === 'mild') {
+      findQuery.scoreBandLabel = { $regex: /mild|minimal|low/i }
     }
 
     const isSubmittedView =
@@ -1160,6 +1170,54 @@ export const getPatientModuleTimeline = async (req: Request, res: Response) => {
       attempts: rows,
       nextCursor,
     })
+  } catch (error) {
+    errorHandler(res, error)
+  }
+}
+
+export const getPatientModules = async (req: Request, res: Response) => {
+  try {
+    const therapistId = req.user?._id as Types.ObjectId
+    const me = await User.findById(therapistId, 'roles isVerifiedTherapist')
+    if (!me || (!isAdmin(me) && !isVerifiedTherapist(me))) {
+      res.status(403).json({ success: false, message: 'Access denied' })
+      return
+    }
+
+    const { patientId } = req.params
+    const canSee =
+      isAdmin(me) ||
+      (await therapistCanSeePatient(therapistId, new Types.ObjectId(patientId)))
+    if (!canSee) {
+      res.status(403).json({
+        success: false,
+        message: "You are not the patient's therapist",
+      })
+      return
+    }
+
+    const modules = await ModuleAttempt.aggregate([
+      { $match: { user: new Types.ObjectId(patientId) } },
+      { $group: { _id: '$module' } },
+      {
+        $lookup: {
+          from: 'modules',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'mod',
+        },
+      },
+      { $addFields: { mod: { $arrayElemAt: ['$mod', 0] } } },
+      {
+        $project: {
+          _id: 1,
+          title: '$mod.title',
+        },
+      },
+      { $sort: { title: 1 } },
+    ])
+
+    res.status(200).json({ success: true, modules })
   } catch (error) {
     errorHandler(res, error)
   }
