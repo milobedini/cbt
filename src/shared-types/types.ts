@@ -618,7 +618,7 @@ export type ReviewResponse = {
 
 export type UpdateAssignmentInput = {
   status?: AssignmentStatus
-  dueAt?: string
+  dueAt?: string | null
   notes?: string
   recurrence?: AssignmentRecurrence
 }
