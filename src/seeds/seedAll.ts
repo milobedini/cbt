@@ -773,6 +773,7 @@ const seedAssignments = async (
 
       const createdAt = daysAgo(randInt(7, 60))
 
+      const completedAtDate = status === 'completed' ? daysAgo(randInt(0, 6)) : undefined
       const assignment = await ModuleAssignment.create({
         user: patientId,
         therapist: therapistId,
@@ -786,6 +787,7 @@ const seedAssignments = async (
         ...(notes ? { notes } : {}),
         createdAt,
         updatedAt: status === 'assigned' ? createdAt : daysAgo(randInt(0, 6)),
+        ...(completedAtDate ? { completedAt: completedAtDate } : {}),
       })
 
       seededAssignments.push({
@@ -911,6 +913,7 @@ const seedAssignments = async (
       dueAt: daysAgo(27 - w * 7),
       createdAt,
       updatedAt: completedAt,
+      completedAt,
     })
     seededAssignments.push({
       _id: recurringAssignment._id as Types.ObjectId,
@@ -972,6 +975,7 @@ const seedAssignments = async (
     source: 'self' as const,
     createdAt: daysAgo(10),
     updatedAt: daysAgo(9),
+    completedAt: daysAgo(9),
   })
   seededAssignments.push({
     _id: selfCompletedAssignment._id as Types.ObjectId,
@@ -1021,6 +1025,7 @@ const seedAssignments = async (
     source: 'self' as const,
     createdAt: daysAgo(5),
     updatedAt: daysAgo(4),
+    completedAt: daysAgo(4),
   })
   seededAssignments.push({
     _id: selfCompletedAssignment2._id as Types.ObjectId,
@@ -1055,6 +1060,7 @@ const seedAssignments = async (
     dueAt: daysAgo(2),
     createdAt: daysAgo(10),
     updatedAt: daysAgo(1),
+    completedAt: daysAgo(1),
   })
   seededAssignments.push({
     _id: severeAssignment._id as Types.ObjectId,
@@ -1081,6 +1087,7 @@ const seedAssignments = async (
     source: 'therapist' as const,
     createdAt: daysAgo(21),
     updatedAt: daysAgo(19),
+    completedAt: daysAgo(19),
   })
   const regressionAssignment2 = await ModuleAssignment.create({
     user: regressionPatientId,
@@ -1092,6 +1099,7 @@ const seedAssignments = async (
     source: 'therapist' as const,
     createdAt: daysAgo(7),
     updatedAt: daysAgo(5),
+    completedAt: daysAgo(5),
   })
   seededAssignments.push(
     {
@@ -1159,6 +1167,7 @@ const seedAssignments = async (
     dueAt: daysAgo(1),
     createdAt: daysAgo(7),
     updatedAt: daysAgo(1),
+    completedAt: daysAgo(1),
   })
   seededAssignments.push({
     _id: firstSubmitAssignment._id as Types.ObjectId,
@@ -1700,7 +1709,7 @@ const seedAttempts = async (
   if (dashboardClients.length > 0) {
     await ModuleAssignment.updateMany(
       { user: dashboardClients[0], therapist: therapist1Id },
-      { $set: { status: 'completed' } }
+      { $set: { status: 'completed', completedAt: new Date() } }
     )
   }
 

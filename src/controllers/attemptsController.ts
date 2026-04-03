@@ -393,6 +393,7 @@ export const submitAttempt = async (req: Request, res: Response) => {
         await ModuleAssignment.findByIdAndUpdate(assignmentId, {
           latestAttempt: attempt._id,
           status: 'completed',
+          completedAt: now,
         }).exec()
       }
 
@@ -497,6 +498,7 @@ export const submitAttempt = async (req: Request, res: Response) => {
       await ModuleAssignment.findByIdAndUpdate(assignmentId, {
         latestAttempt: attempt._id,
         status: 'completed',
+        completedAt: now,
       }).exec()
     }
 

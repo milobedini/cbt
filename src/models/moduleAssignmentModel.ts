@@ -17,6 +17,7 @@ interface IModuleAssignment extends Document {
   source: AssignmentSource
   createdAt: Date
   updatedAt: Date
+  completedAt?: Date
 
   dueAt?: Date
   recurrence?: { freq: 'weekly' | 'monthly' | 'none'; interval?: number }
@@ -68,6 +69,7 @@ const ModuleAssignmentSchema = new Schema<IModuleAssignment>(
       enum: ['therapist', 'self'],
       default: 'therapist',
     },
+    completedAt: { type: Date, default: null },
     dueAt: { type: Date, index: true },
     recurrence: {
       freq: {

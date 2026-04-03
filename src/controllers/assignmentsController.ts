@@ -329,6 +329,7 @@ export const updateAssignment = async (req: Request, res: Response) => {
     const updateUnset: Record<string, unknown> = {};
 
     if (status !== undefined) updateSet["status"] = status;
+    if (status === "completed") updateSet["completedAt"] = new Date();
     if (notes !== undefined) updateSet["notes"] = notes;
     if (recurrence !== undefined) updateSet["recurrence"] = recurrence;
 

@@ -271,6 +271,7 @@ export type ModuleAssignment = {
   notes?: string
   createdAt: string
   updatedAt: string
+  completedAt?: string
 }
 
 // ==================================

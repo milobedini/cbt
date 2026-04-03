@@ -155,13 +155,13 @@ export const getTherapistReview = async (req: Request, res: Response) => {
     };
     if (moduleId) submissionMatch["module"] = new Types.ObjectId(moduleId);
     if (dateFrom || dateTo) {
-      submissionMatch["updatedAt"] = {};
-      if (dateFrom) submissionMatch["updatedAt"]["$gte"] = new Date(dateFrom);
-      if (dateTo) submissionMatch["updatedAt"]["$lte"] = new Date(dateTo);
+      submissionMatch["completedAt"] = {};
+      if (dateFrom) submissionMatch["completedAt"]["$gte"] = new Date(dateFrom);
+      if (dateTo) submissionMatch["completedAt"]["$lte"] = new Date(dateTo);
     }
     if (cursor) {
-      submissionMatch["updatedAt"] = {
-        ...(submissionMatch["updatedAt"] ?? {}),
+      submissionMatch["completedAt"] = {
+        ...(submissionMatch["completedAt"] ?? {}),
         ...(sort === "oldest"
           ? { $gt: new Date(cursor) }
           : { $lt: new Date(cursor) }),
@@ -169,9 +169,9 @@ export const getTherapistReview = async (req: Request, res: Response) => {
     }
 
     // For severity sort, fetch by date then re-sort within date groups by score.
-    // For newest/oldest, sort by updatedAt directly.
+    // For newest/oldest, sort by completedAt directly.
     const sortDir = sort === "oldest" ? 1 : -1;
-    const dbSortField = { updatedAt: sortDir };
+    const dbSortField = { completedAt: sortDir };
 
     const submissions = await ModuleAssignment.find(submissionMatch)
       .sort(dbSortField as any)
@@ -216,15 +216,15 @@ export const getTherapistReview = async (req: Request, res: Response) => {
     };
     if (moduleId) countMatch["module"] = new Types.ObjectId(moduleId);
     if (dateFrom || dateTo) {
-      countMatch["updatedAt"] = {};
-      if (dateFrom) countMatch["updatedAt"]["$gte"] = new Date(dateFrom);
-      if (dateTo) countMatch["updatedAt"]["$lte"] = new Date(dateTo);
+      countMatch["completedAt"] = {};
+      if (dateFrom) countMatch["completedAt"]["$gte"] = new Date(dateFrom);
+      if (dateTo) countMatch["completedAt"]["$lte"] = new Date(dateTo);
     }
     const total = await ModuleAssignment.countDocuments(countMatch);
 
     const nextCursor =
       hasNext && page.length > 0
-        ? (page[page.length - 1] as any).updatedAt?.toISOString()
+        ? (page[page.length - 1] as any).completedAt?.toISOString()
         : null;
 
     // When severity is applied post-query, the DB total is inaccurate —

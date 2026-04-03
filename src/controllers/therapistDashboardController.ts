@@ -214,7 +214,7 @@ export const getTherapistDashboard = async (
     const completedAssignmentsThisWeek = await ModuleAssignment.find({
       user: { $in: patientIds },
       status: "completed",
-      updatedAt: { $gte: weekStart, $lt: weekEnd },
+      completedAt: { $gte: weekStart, $lt: weekEnd },
     }).lean();
 
     // Group assignments by patient

@@ -64,7 +64,7 @@ export const getMyPractice = async (req: Request, res: Response) => {
       user: userId,
       status: 'completed',
     })
-      .sort({ updatedAt: -1 })
+      .sort({ completedAt: -1 })
       .limit(5)
       .populate(POPULATE_FIELDS)
       .lean()
@@ -136,10 +136,10 @@ export const getMyPracticeHistory = async (req: Request, res: Response) => {
     }
     if (moduleId) match['module'] = new Types.ObjectId(moduleId)
     if (moduleType) match['moduleType'] = moduleType
-    if (cursor) match['updatedAt'] = { $lt: new Date(cursor) }
+    if (cursor) match['completedAt'] = { $lt: new Date(cursor) }
 
     const items = await ModuleAssignment.find(match)
-      .sort({ updatedAt: -1 })
+      .sort({ completedAt: -1 })
       .limit(limit + 1)
       .populate(POPULATE_FIELDS)
       .lean()
@@ -176,7 +176,7 @@ export const getMyPracticeHistory = async (req: Request, res: Response) => {
     })
 
     const nextCursor = hasNext
-      ? page[page.length - 1].updatedAt.toISOString()
+      ? page[page.length - 1].completedAt?.toISOString()
       : null
 
     res.status(200).json({
@@ -228,7 +228,7 @@ export const getPatientPractice = async (req: Request, res: Response) => {
       user: patientObjId,
       status: 'completed',
     })
-      .sort({ updatedAt: -1 })
+      .sort({ completedAt: -1 })
       .limit(5)
       .populate(POPULATE_FIELDS)
       .lean()
