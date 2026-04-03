@@ -1705,11 +1705,11 @@ const seedAttempts = async (
     totalCreated++
   }
 
-  // Mark one client's assignments as all completed (for ✓ display)
+  // Mark one client's remaining assignments as completed (for ✓ display)
   if (dashboardClients.length > 0) {
     await ModuleAssignment.updateMany(
-      { user: dashboardClients[0], therapist: therapist1Id },
-      { $set: { status: 'completed', completedAt: new Date() } }
+      { user: dashboardClients[0], therapist: therapist1Id, status: { $ne: 'completed' } },
+      { $set: { status: 'completed', completedAt: daysAgo(randInt(0, 3)) } }
     )
   }
 
