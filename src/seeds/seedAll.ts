@@ -773,7 +773,6 @@ const seedAssignments = async (
 
       const createdAt = daysAgo(randInt(7, 60))
 
-      const completedAtDate = status === 'completed' ? daysAgo(randInt(0, 6)) : undefined
       const assignment = await ModuleAssignment.create({
         user: patientId,
         therapist: therapistId,
@@ -787,7 +786,6 @@ const seedAssignments = async (
         ...(notes ? { notes } : {}),
         createdAt,
         updatedAt: status === 'assigned' ? createdAt : daysAgo(randInt(0, 6)),
-        ...(completedAtDate ? { completedAt: completedAtDate } : {}),
       })
 
       seededAssignments.push({
@@ -1370,9 +1368,10 @@ const seedAttempts = async (
 
     const attempt = await ModuleAttempt.create(attemptData)
 
-    // Back-link to assignment
+    // Back-link to assignment and sync completedAt
     await ModuleAssignment.findByIdAndUpdate(assignment._id, {
       latestAttempt: attempt._id,
+      ...(completedAt ? { completedAt } : {}),
     })
 
     totalCreated++
