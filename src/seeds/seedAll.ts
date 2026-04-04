@@ -1772,7 +1772,7 @@ const seedAttempts = async (
       weekStart: getWeekStart(startedAt),
       moduleSnapshot: buildSnapshot(phq9Module.doc, phq9Module.questions),
     })
-    await ModuleAssignment.findByIdAndUpdate(ra._id, { latestAttempt: attempt._id })
+    await ModuleAssignment.findByIdAndUpdate(ra._id, { latestAttempt: attempt._id, completedAt })
     totalCreated++
   }
   console.log('  Recurring chain attempts: 3 submitted PHQ-9 (scores ~14, ~12, ~10)')
@@ -1816,7 +1816,7 @@ const seedAttempts = async (
       attemptData.moduleSnapshot = buildSnapshot(sca.moduleDoc, sca.questions)
     }
     const attempt = await ModuleAttempt.create(attemptData)
-    await ModuleAssignment.findByIdAndUpdate(sca._id, { latestAttempt: attempt._id })
+    await ModuleAssignment.findByIdAndUpdate(sca._id, { latestAttempt: attempt._id, completedAt })
     totalCreated++
   }
 
@@ -1912,7 +1912,7 @@ const seedAttempts = async (
       weekStart: getWeekStart(startedAt),
       moduleSnapshot: buildSnapshot(phq9Module.doc, phq9Module.questions),
     })
-    await ModuleAssignment.findByIdAndUpdate(severeAssignmentMatch._id, { latestAttempt: attempt._id })
+    await ModuleAssignment.findByIdAndUpdate(severeAssignmentMatch._id, { latestAttempt: attempt._id, completedAt })
     totalCreated++
   }
 
@@ -1972,7 +1972,7 @@ const seedAttempts = async (
       weekStart: getWeekStart(startedAt),
       moduleSnapshot: buildSnapshot(phq9Module.doc, phq9Module.questions),
     })
-    await ModuleAssignment.findByIdAndUpdate(ra._id, { latestAttempt: attempt._id })
+    await ModuleAssignment.findByIdAndUpdate(ra._id, { latestAttempt: attempt._id, completedAt })
     totalCreated++
   }
 
@@ -2009,7 +2009,7 @@ const seedAttempts = async (
       weekStart: getWeekStart(startedAt),
       moduleSnapshot: buildSnapshot(phq9Module.doc, phq9Module.questions),
     })
-    await ModuleAssignment.findByIdAndUpdate(firstSubmitMatch._id, { latestAttempt: attempt._id })
+    await ModuleAssignment.findByIdAndUpdate(firstSubmitMatch._id, { latestAttempt: attempt._id, completedAt })
     totalCreated++
   }
   console.log('  Needs-attention attempts: severe, regression (8→14), first-submission')
