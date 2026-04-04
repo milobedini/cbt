@@ -74,7 +74,12 @@ const registerUser = async (req: Request, res: Response): Promise<void> => {
 
     generateTokenAndSetCookie(res, newUser._id as string)
 
-    await sendVerificationEmail(newUser.email, verificationCode)
+    // Skip verification email for E2E test users in non-production
+    const isE2eUser =
+      process.env.NODE_ENV !== 'production' && email.startsWith('e2e-')
+    if (!isE2eUser) {
+      await sendVerificationEmail(newUser.email, verificationCode)
+    }
 
     res.status(201).json({
       success: true,
@@ -97,15 +102,32 @@ const verifyEmail = async (req: Request, res: Response): Promise<void> => {
     return
   }
   try {
-    const hashedCode = crypto
-      .createHash('sha256')
-      .update(verificationCode.trim())
-      .digest('hex')
+    let user: IUser | null = null
 
-    const user = await User.findOne({
-      verificationCode: hashedCode,
-      verificationCodeExpires: { $gt: new Date() },
-    })
+    // E2E bypass: accept code 000000 in non-production to enable Maestro testing
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      verificationCode.trim() === '000000'
+    ) {
+      const jwt = await import('jsonwebtoken')
+      const token = req.cookies?.token
+      if (token && process.env.JWT_SECRET) {
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET) as {
+          userId: string
+        }
+        user = await User.findById(decoded.userId)
+      }
+    } else {
+      const hashedCode = crypto
+        .createHash('sha256')
+        .update(verificationCode.trim())
+        .digest('hex')
+
+      user = await User.findOne({
+        verificationCode: hashedCode,
+        verificationCodeExpires: { $gt: new Date() },
+      })
+    }
     if (!user) {
       res.status(400).json({
         success: false,
@@ -118,7 +140,10 @@ const verifyEmail = async (req: Request, res: Response): Promise<void> => {
     user.verificationCodeExpires = undefined
     await user.save()
 
-    await sendWelcomeEmail(user.email, user.username)
+    // Skip welcome email for E2E test users in non-production
+    if (!(process.env.NODE_ENV !== 'production' && user.email.startsWith('e2e-'))) {
+      await sendWelcomeEmail(user.email, user.username)
+    }
     res.status(200).json({
       success: true,
       message: 'Email verified successfully!',

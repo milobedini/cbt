@@ -7,6 +7,7 @@ import moduleRouter from "./routes/moduleRoute";
 import programRouter from "./routes/programRoute";
 import attemptRouter from "./routes/attemptsRoute";
 import assignmentRouter from "./routes/assignmentsRoute";
+import testRouter from "./routes/testRoute";
 import connectDB from "./config/database";
 import cookieParser from "cookie-parser";
 import authenticateUser from "./middleware/authMiddleware";
@@ -72,6 +73,10 @@ app.use("/api/modules", authenticateUser, moduleRouter);
 app.use("/api/programs", authenticateUser, programRouter);
 app.use("/api/attempts", authenticateUser, attemptRouter);
 app.use("/api/assignments", authenticateUser, assignmentRouter);
+
+if (isDev) {
+  app.use("/api/test", testRouter);
+}
 
 app.get("/", (_req, res) => {
   res.send("CBT API is running");
