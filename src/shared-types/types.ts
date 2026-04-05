@@ -112,6 +112,16 @@ export type ModuleType =
   | 'questionnaire'
   | 'reading'
   | 'activity_diary'
+  | 'five_areas_model'
+
+export type FiveAreasData = {
+  situation: string
+  thoughts: string
+  emotions: string
+  behaviours: string
+  physical: string
+  reflection: string
+}
 
 export type Module = {
   _id: string
@@ -215,6 +225,7 @@ export type ModuleAttempt = {
   userNote?: string
   therapistNote?: string
   readerNote?: string
+  fiveAreas?: FiveAreasData
   createdAt: string
   updatedAt: string
 }
@@ -314,6 +325,8 @@ export type SaveProgressInput = {
   merge?: boolean
   // reading
   readerNote?: string
+  // five areas model
+  fiveAreas?: Partial<FiveAreasData>
   // common
   userNote?: string
 }
@@ -721,6 +734,7 @@ export type AttemptDetailResponseItem = ModuleAttempt & {
   band?: ScoreBandSummary
   detail?: AttemptDetail
   diary?: DiaryDetail
+  fiveAreas?: FiveAreasData
   patient?: Pick<AuthUser, '_id' | 'name' | 'username' | 'email'>
   module?: Pick<Module, '_id' | 'title' | 'type'>
 }
