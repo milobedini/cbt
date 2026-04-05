@@ -19,6 +19,15 @@ interface IDiaryEntry {
   enjoyment?: number // 0..10
 }
 
+interface IFiveAreas {
+  situation?: string
+  thoughts?: string
+  emotions?: string
+  behaviours?: string
+  physical?: string
+  reflection?: string
+}
+
 interface IModuleAttempt extends Document {
   user: Types.ObjectId
   therapist?: Types.ObjectId // snapshot for easy therapist queries
@@ -28,6 +37,7 @@ interface IModuleAttempt extends Document {
     | 'questionnaire'
     | 'reading'
     | 'activity_diary'
+    | 'five_areas_model'
 
   // lifecycle
   status: AttemptStatus
@@ -60,6 +70,9 @@ interface IModuleAttempt extends Document {
   // Diary
   diaryEntries?: IDiaryEntry[]
 
+  // Five Areas Model
+  fiveAreas?: IFiveAreas
+
   // notes / metadata
   userNote?: string
   therapistNote?: string
@@ -91,7 +104,7 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
     },
     moduleType: {
       type: String,
-      enum: ['questionnaire', 'reading', 'activity_diary'],
+      enum: ['questionnaire', 'reading', 'activity_diary', 'five_areas_model'],
       required: true,
     },
 
@@ -136,6 +149,16 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
         enjoyment: { type: Number, min: 0, max: 10 },
       },
     ],
+
+    // Five Areas Model
+    fiveAreas: {
+      situation: { type: String, trim: true, maxlength: 2000 },
+      thoughts: { type: String, trim: true, maxlength: 2000 },
+      emotions: { type: String, trim: true, maxlength: 2000 },
+      behaviours: { type: String, trim: true, maxlength: 2000 },
+      physical: { type: String, trim: true, maxlength: 2000 },
+      reflection: { type: String, trim: true, maxlength: 2000 },
+    },
 
     contentVersion: Number,
     moduleSnapshot: {

@@ -178,6 +178,31 @@ export const saveProgress = async (req: Request, res: Response) => {
       return
     }
 
+    if (attempt.moduleType === 'five_areas_model') {
+      const { fiveAreas } = req.body as {
+        fiveAreas?: Partial<{
+          situation: string
+          thoughts: string
+          emotions: string
+          behaviours: string
+          physical: string
+          reflection: string
+        }>
+      }
+
+      if (fiveAreas) {
+        const existing =
+          (attempt.fiveAreas as unknown as { toObject?: () => Record<string, unknown> })
+            ?.toObject?.() ?? attempt.fiveAreas ?? {}
+        attempt.fiveAreas = { ...existing, ...fiveAreas } as typeof attempt.fiveAreas
+      }
+      if (typeof userNote === 'string') attempt.userNote = userNote
+      attempt.lastInteractionAt = new Date()
+      await attempt.save()
+      res.status(200).json({ success: true, attempt })
+      return
+    }
+
     if (attempt.moduleType === 'activity_diary') {
       if (Array.isArray(diaryEntries)) {
         const sanitized = sanitizeDiaryEntries(diaryEntries)
@@ -425,6 +450,68 @@ export const submitAttempt = async (req: Request, res: Response) => {
             recurrenceGroupId:
               (completedAssignment as any).recurrenceGroupId ??
               completedAssignment._id,
+            notes: completedAssignment.notes,
+          })
+        }
+      }
+
+      res.status(200).json({ success: true, attempt })
+      return
+    }
+
+    if (attempt.moduleType === 'five_areas_model') {
+      attempt.completedAt = now
+      attempt.lastInteractionAt = now
+      attempt.status = 'submitted'
+      attempt.durationSecs = attempt.startedAt
+        ? Math.max(0, Math.floor((now.getTime() - attempt.startedAt.getTime()) / 1000))
+        : undefined
+
+      const me = await User.findById(userId, 'therapist')
+      attempt.therapist = me?.therapist
+      await attempt.save()
+
+      if (!assignmentId) {
+        const possible = await findActiveAssignment(
+          attempt.user as Types.ObjectId,
+          attempt.module as Types.ObjectId,
+          attempt.therapist as Types.ObjectId
+        )
+        if (possible) assignmentId = String(possible._id)
+      }
+      if (assignmentId) {
+        await ModuleAssignment.findByIdAndUpdate(assignmentId, {
+          latestAttempt: attempt._id,
+          status: 'completed',
+          completedAt: now,
+        }).exec()
+      }
+
+      // Auto-generate next recurring assignment
+      if (assignmentId) {
+        const completedAssignment = await ModuleAssignment.findById(assignmentId).lean()
+        if (
+          completedAssignment?.recurrence?.freq &&
+          completedAssignment.recurrence.freq !== 'none'
+        ) {
+          const nextDueAt = computeNextDueDate(
+            completedAssignment.dueAt,
+            now,
+            completedAssignment.recurrence.freq,
+            completedAssignment.recurrence.interval
+          )
+          await ModuleAssignment.create({
+            user: completedAssignment.user,
+            therapist: completedAssignment.therapist,
+            program: completedAssignment.program,
+            module: completedAssignment.module,
+            moduleType: completedAssignment.moduleType,
+            status: 'assigned',
+            source: (completedAssignment as any).source ?? 'therapist',
+            dueAt: nextDueAt,
+            recurrence: completedAssignment.recurrence,
+            recurrenceGroupId:
+              (completedAssignment as any).recurrenceGroupId ?? completedAssignment._id,
             notes: completedAssignment.notes,
           })
         }

@@ -12,6 +12,7 @@ interface IModuleAssignment extends Document {
     | 'questionnaire'
     | 'reading'
     | 'activity_diary'
+    | 'five_areas_model'
 
   status: AssignmentStatus
   source: AssignmentSource
@@ -54,7 +55,7 @@ const ModuleAssignmentSchema = new Schema<IModuleAssignment>(
     },
     moduleType: {
       type: String,
-      enum: ['questionnaire', 'reading', 'activity_diary'],
+      enum: ['questionnaire', 'reading', 'activity_diary', 'five_areas_model'],
       required: true,
     },
 
