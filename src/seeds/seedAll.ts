@@ -141,7 +141,7 @@ interface BandData {
 interface ModuleData {
   title: string
   description: string
-  type: 'questionnaire' | 'reading' | 'activity_diary'
+  type: 'questionnaire' | 'reading' | 'activity_diary' | 'five_areas_model'
   accessPolicy: 'open' | 'assigned'
   disclaimer?: string
   imageUrl?: string
@@ -351,6 +351,16 @@ const PROGRAMS: ProgramData[] = [
         disclaimer:
           'This diary is for self-monitoring and does not replace professional care. If you feel unsafe, seek immediate help.',
         imageUrl: 'https://placehold.co/600x400?text=Activity+Diary',
+      },
+      {
+        title: '5 Areas Model',
+        description:
+          'Map a situation where your mood dropped across five areas — thoughts, emotions, physical sensations, and behaviours — then reflect on how to break the cycle.',
+        type: 'five_areas_model',
+        accessPolicy: 'assigned',
+        disclaimer:
+          'This is a self-reflection tool and does not replace professional assessment. If you feel unsafe, seek immediate help.',
+        imageUrl: 'https://placehold.co/600x400?text=5+Areas+Model',
       },
     ],
   },
