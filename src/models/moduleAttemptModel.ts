@@ -28,6 +28,23 @@ interface IFiveAreas {
   reflection?: string
 }
 
+interface IGeneralGoalEntry {
+  goalText?: string
+  rating?: number | null
+}
+
+interface IPreviousRating {
+  date?: Date
+  ratings?: number[]
+}
+
+interface IGeneralGoals {
+  goals?: IGeneralGoalEntry[]
+  reflection?: string
+  isReRating?: boolean
+  previousRatings?: IPreviousRating[]
+}
+
 interface IModuleAttempt extends Document {
   user: Types.ObjectId
   therapist?: Types.ObjectId // snapshot for easy therapist queries
@@ -38,6 +55,7 @@ interface IModuleAttempt extends Document {
     | 'reading'
     | 'activity_diary'
     | 'five_areas_model'
+    | 'general_goals'
 
   // lifecycle
   status: AttemptStatus
@@ -73,6 +91,9 @@ interface IModuleAttempt extends Document {
   // Five Areas Model
   fiveAreas?: IFiveAreas
 
+  // General Goals
+  generalGoals?: IGeneralGoals
+
   // notes / metadata
   userNote?: string
   therapistNote?: string
@@ -104,7 +125,7 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
     },
     moduleType: {
       type: String,
-      enum: ['questionnaire', 'reading', 'activity_diary', 'five_areas_model'],
+      enum: ['questionnaire', 'reading', 'activity_diary', 'five_areas_model', 'general_goals'],
       required: true,
     },
 
@@ -158,6 +179,24 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
       behaviours: { type: String, trim: true, maxlength: 2000 },
       physical: { type: String, trim: true, maxlength: 2000 },
       reflection: { type: String, trim: true, maxlength: 2000 },
+    },
+
+    // General Goals
+    generalGoals: {
+      goals: [
+        {
+          goalText: { type: String, trim: true, maxlength: 500 },
+          rating: { type: Number, min: 0, max: 10, default: null },
+        },
+      ],
+      reflection: { type: String, trim: true, maxlength: 2000 },
+      isReRating: { type: Boolean, default: false },
+      previousRatings: [
+        {
+          date: { type: Date },
+          ratings: [{ type: Number, min: 0, max: 10 }],
+        },
+      ],
     },
 
     contentVersion: Number,
