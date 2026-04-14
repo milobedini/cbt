@@ -142,6 +142,8 @@ export const startAttempt = async (req: Request, res: Response) => {
           ...(prevGoals?.previousRatings ?? []),
           {
             date: latestSubmitted?.completedAt,
+            // Submit validation ensures all ratings are non-null; fallback to 0
+            // preserves position-indexed alignment if data is ever inconsistent
             ratings: prevGoalsList.map(
               (g: { rating?: number | null }) => g.rating ?? 0
             ),
@@ -619,6 +621,18 @@ export const submitAttempt = async (req: Request, res: Response) => {
         res.status(400).json({
           success: false,
           message: 'Each goal must have text and a rating',
+        })
+        return
+      }
+
+      const hasInvalidRating = goals.some(
+        (g: { rating?: number | null }) =>
+          typeof g.rating !== 'number' || g.rating < 0 || g.rating > 10
+      )
+      if (hasInvalidRating) {
+        res.status(400).json({
+          success: false,
+          message: 'Ratings must be between 0 and 10',
         })
         return
       }
