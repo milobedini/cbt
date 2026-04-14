@@ -151,6 +151,8 @@ const createModule = async (req: Request, res: Response) => {
       'questionnaire',
       'reading',
       'activity_diary',
+      'five_areas_model',
+      'general_goals',
     ]
     if (!allowedTypes.includes(type)) {
       res.status(400).json({
