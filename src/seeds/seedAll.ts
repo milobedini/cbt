@@ -141,7 +141,7 @@ interface BandData {
 interface ModuleData {
   title: string
   description: string
-  type: 'questionnaire' | 'reading' | 'activity_diary' | 'five_areas_model'
+  type: 'questionnaire' | 'reading' | 'activity_diary' | 'five_areas_model' | 'general_goals'
   accessPolicy: 'open' | 'assigned'
   disclaimer?: string
   imageUrl?: string
@@ -361,6 +361,16 @@ const PROGRAMS: ProgramData[] = [
         disclaimer:
           'This is a self-reflection tool and does not replace professional assessment. If you feel unsafe, seek immediate help.',
         imageUrl: 'https://placehold.co/600x400?text=5+Areas+Model',
+      },
+      {
+        title: 'General Goals',
+        description:
+          'Set up to three overarching therapy goals and rate your progress on a 0-10 scale. Re-rate periodically to track how therapy is helping you move towards what matters most.',
+        type: 'general_goals',
+        accessPolicy: 'assigned',
+        disclaimer:
+          'This goal-tracking tool supports your therapy but does not replace professional guidance. Discuss your goals with your therapist.',
+        imageUrl: 'https://placehold.co/600x400?text=General+Goals',
       },
     ],
   },
