@@ -113,6 +113,7 @@ export type ModuleType =
   | 'reading'
   | 'activity_diary'
   | 'five_areas_model'
+  | 'general_goals'
 
 export type FiveAreasData = {
   situation: string
@@ -121,6 +122,23 @@ export type FiveAreasData = {
   behaviours: string
   physical: string
   reflection: string
+}
+
+export type GeneralGoalEntry = {
+  goalText: string
+  rating: number | null
+}
+
+export type PreviousRating = {
+  date: string
+  ratings: number[]
+}
+
+export type GeneralGoalsData = {
+  goals: GeneralGoalEntry[]
+  reflection: string
+  isReRating: boolean
+  previousRatings: PreviousRating[]
 }
 
 export type Module = {
@@ -226,6 +244,7 @@ export type ModuleAttempt = {
   therapistNote?: string
   readerNote?: string
   fiveAreas?: FiveAreasData
+  generalGoals?: GeneralGoalsData
   createdAt: string
   updatedAt: string
 }
@@ -327,6 +346,8 @@ export type SaveProgressInput = {
   readerNote?: string
   // five areas model
   fiveAreas?: Partial<FiveAreasData>
+  // general goals
+  generalGoals?: Partial<GeneralGoalsData>
   // common
   userNote?: string
 }
@@ -735,6 +756,7 @@ export type AttemptDetailResponseItem = ModuleAttempt & {
   detail?: AttemptDetail
   diary?: DiaryDetail
   fiveAreas?: FiveAreasData
+  generalGoals?: GeneralGoalsData
   patient?: Pick<AuthUser, '_id' | 'name' | 'username' | 'email'>
   module?: Pick<Module, '_id' | 'title' | 'type'>
 }
