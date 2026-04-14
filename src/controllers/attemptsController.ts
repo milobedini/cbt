@@ -123,6 +123,47 @@ export const startAttempt = async (req: Request, res: Response) => {
       moduleSnapshot: snapshot,
     })
 
+    // Pre-populate general_goals re-rating from most recent submitted attempt
+    if (mod.type === 'general_goals') {
+      const latestSubmitted = await ModuleAttempt.findOne({
+        user: userId,
+        module: mod._id,
+        moduleType: 'general_goals',
+        status: 'submitted',
+      })
+        .sort({ completedAt: -1 })
+        .select('generalGoals completedAt')
+        .lean()
+
+      const prevGoals = latestSubmitted?.generalGoals
+      const prevGoalsList = prevGoals?.goals
+      if (prevGoalsList?.length) {
+        const previousRatings = [
+          ...(prevGoals?.previousRatings ?? []),
+          {
+            date: latestSubmitted?.completedAt,
+            ratings: prevGoalsList.map(
+              (g: { rating?: number | null }) => g.rating ?? 0
+            ),
+          },
+        ]
+
+        attempt.generalGoals = {
+          goals: prevGoalsList.map(
+            (g: { goalText?: string }) => ({
+              goalText: g.goalText,
+              rating: null,
+            })
+          ),
+          reflection: '',
+          isReRating: true,
+          previousRatings,
+        } as typeof attempt.generalGoals
+
+        await attempt.save()
+      }
+    }
+
     if (assignment && assignment.status === 'assigned') {
       await ModuleAssignment.updateOne(
         { _id: assignment._id },
@@ -195,6 +236,35 @@ export const saveProgress = async (req: Request, res: Response) => {
           (attempt.fiveAreas as unknown as { toObject?: () => Record<string, unknown> })
             ?.toObject?.() ?? attempt.fiveAreas ?? {}
         attempt.fiveAreas = { ...existing, ...fiveAreas } as typeof attempt.fiveAreas
+      }
+      if (typeof userNote === 'string') attempt.userNote = userNote
+      attempt.lastInteractionAt = new Date()
+      await attempt.save()
+      res.status(200).json({ success: true, attempt })
+      return
+    }
+
+    if (attempt.moduleType === 'general_goals') {
+      const { generalGoals } = req.body as {
+        generalGoals?: Partial<{
+          goals: Array<{ goalText: string; rating: number | null }>
+          reflection: string
+          isReRating: boolean
+          previousRatings: Array<{ date: string; ratings: number[] }>
+        }>
+      }
+
+      if (generalGoals) {
+        const existing =
+          (
+            attempt.generalGoals as unknown as {
+              toObject?: () => Record<string, unknown>
+            }
+          )?.toObject?.() ?? attempt.generalGoals ?? {}
+        attempt.generalGoals = {
+          ...existing,
+          ...generalGoals,
+        } as typeof attempt.generalGoals
       }
       if (typeof userNote === 'string') attempt.userNote = userNote
       attempt.lastInteractionAt = new Date()
@@ -512,6 +582,115 @@ export const submitAttempt = async (req: Request, res: Response) => {
             recurrence: completedAssignment.recurrence,
             recurrenceGroupId:
               (completedAssignment as any).recurrenceGroupId ?? completedAssignment._id,
+            notes: completedAssignment.notes,
+          })
+        }
+      }
+
+      res.status(200).json({ success: true, attempt })
+      return
+    }
+
+    if (attempt.moduleType === 'general_goals') {
+      // Validate goals
+      const goals = attempt.generalGoals?.goals ?? []
+      if (goals.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'Please add at least one goal before submitting',
+        })
+        return
+      }
+      if (goals.length > 3) {
+        res.status(400).json({
+          success: false,
+          message: 'A maximum of 3 goals is allowed',
+        })
+        return
+      }
+
+      const hasEmptyGoal = goals.some(
+        (g: { goalText?: string; rating?: number | null }) =>
+          !g.goalText?.trim() ||
+          g.rating === null ||
+          g.rating === undefined
+      )
+      if (hasEmptyGoal) {
+        res.status(400).json({
+          success: false,
+          message: 'Each goal must have text and a rating',
+        })
+        return
+      }
+
+      if (!attempt.generalGoals?.reflection?.trim()) {
+        res.status(400).json({
+          success: false,
+          message: 'Please add a reflection before submitting',
+        })
+        return
+      }
+
+      attempt.completedAt = now
+      attempt.lastInteractionAt = now
+      attempt.status = 'submitted'
+      attempt.durationSecs = attempt.startedAt
+        ? Math.max(
+            0,
+            Math.floor(
+              (now.getTime() - attempt.startedAt.getTime()) / 1000
+            )
+          )
+        : undefined
+
+      const me = await User.findById(userId, 'therapist')
+      attempt.therapist = me?.therapist
+      await attempt.save()
+
+      if (!assignmentId) {
+        const possible = await findActiveAssignment(
+          attempt.user as Types.ObjectId,
+          attempt.module as Types.ObjectId,
+          attempt.therapist as Types.ObjectId
+        )
+        if (possible) assignmentId = String(possible._id)
+      }
+      if (assignmentId) {
+        await ModuleAssignment.findByIdAndUpdate(assignmentId, {
+          latestAttempt: attempt._id,
+          status: 'completed',
+          completedAt: now,
+        })
+      }
+
+      // Auto-generate next recurring assignment
+      if (assignmentId) {
+        const completedAssignment =
+          await ModuleAssignment.findById(assignmentId).lean()
+        if (
+          completedAssignment?.recurrence?.freq &&
+          completedAssignment.recurrence.freq !== 'none'
+        ) {
+          const nextDueAt = computeNextDueDate(
+            completedAssignment.dueAt,
+            now,
+            completedAssignment.recurrence.freq,
+            completedAssignment.recurrence.interval
+          )
+          await ModuleAssignment.create({
+            user: completedAssignment.user,
+            therapist: completedAssignment.therapist,
+            program: completedAssignment.program,
+            module: completedAssignment.module,
+            moduleType: completedAssignment.moduleType,
+            status: 'assigned',
+            source:
+              (completedAssignment as any).source ?? 'therapist',
+            dueAt: nextDueAt,
+            recurrence: completedAssignment.recurrence,
+            recurrenceGroupId:
+              (completedAssignment as any).recurrenceGroupId ??
+              completedAssignment._id,
             notes: completedAssignment.notes,
           })
         }
