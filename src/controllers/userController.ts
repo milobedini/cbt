@@ -36,7 +36,7 @@ const getUser = async (req: Request, res: Response): Promise<void> => {
     const user = await User.findById(
       userId,
       '_id username email name roles isVerifiedTherapist patients therapist createdAt',
-    ).populate('therapist', '_id username email name')
+    ).populate('therapist', '_id username email name isVerifiedTherapist')
     if (!user) {
       res.status(404).json({ message: 'User not found' })
       return

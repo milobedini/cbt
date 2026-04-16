@@ -75,7 +75,7 @@ export type ProfileResponse = {
   roles: UserRole[]
   isVerifiedTherapist: boolean
   patients: string[]
-  therapist: User | null
+  therapist: (User & { isVerifiedTherapist?: boolean }) | null
   createdAt: string
 }
 
