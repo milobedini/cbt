@@ -947,3 +947,18 @@ export type ScoreTrendsResponse = {
   success: boolean
   trends: ScoreTrendItem[]
 }
+
+// ==================================
+// API: Patient Profile Stats
+// ==================================
+
+export type PatientProfileStatsResponse = {
+  latestScore: {
+    moduleTitle: string
+    score: number
+    band: string
+    trend: 'improving' | 'worsening' | 'stable'
+  } | null
+  sessionsThisWeek: number
+  assignmentsDue: number
+}
