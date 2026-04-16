@@ -19,6 +19,7 @@ import {
 import { getAvailableModules } from "../controllers/moduleController";
 import { getMyAssignments } from "../controllers/assignmentsController";
 import { getTherapistDashboard } from "../controllers/therapistDashboardController";
+import { getProfileStats } from "../controllers/profileStatsController";
 import {
   getMyPractice,
   getMyPracticeHistory,
@@ -43,6 +44,9 @@ router.get("/assignments", getMyAssignments); // ?status=active|completed|all
 
 // ✅ Patient: score trends for dashboard sparklines
 router.get("/score-trends", getMyScoreTrends);
+
+// ✅ Patient: profile stats (latest score, sessions this week, assignments due)
+router.get("/profile-stats", getProfileStats);
 
 // ✅ Therapist: dashboard (triage buckets + stats)
 router.get("/therapist/dashboard", getTherapistDashboard);
