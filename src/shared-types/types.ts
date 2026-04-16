@@ -76,6 +76,7 @@ export type ProfileResponse = {
   isVerifiedTherapist: boolean
   patients: string[]
   therapist: User | null
+  createdAt: string
 }
 
 export type VerifyTherapistInput = {
@@ -953,11 +954,10 @@ export type ScoreTrendsResponse = {
 // ==================================
 
 export type PatientProfileStatsResponse = {
-  latestScore: {
+  latestCompletion: {
+    attemptId: string
     moduleTitle: string
-    score: number
-    band: string
-    trend: 'improving' | 'worsening' | 'stable'
+    completedAt: string
   } | null
   sessionsThisWeek: number
   assignmentsDue: number

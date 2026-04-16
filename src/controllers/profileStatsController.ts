@@ -22,44 +22,23 @@ export const getProfileStats = async (req: Request, res: Response): Promise<void
 
     const weekStart = getWeekStart()
 
-    // Latest questionnaire score
+    // Latest completed attempt (any module type)
     const latestAttempt = await ModuleAttempt.findOne({
       user: userId,
       status: 'submitted',
-      moduleType: 'questionnaire',
-      totalScore: { $ne: null },
     })
       .sort({ completedAt: -1 })
       .populate('module', 'title')
       .lean()
 
-    let latestScore: PatientProfileStatsResponse['latestScore'] = null
+    let latestCompletion: PatientProfileStatsResponse['latestCompletion'] = null
 
-    if (latestAttempt) {
-      // Find previous score for the same module to determine trend
-      const previousAttempt = await ModuleAttempt.findOne({
-        user: userId,
-        module: latestAttempt.module,
-        status: 'submitted',
-        moduleType: 'questionnaire',
-        totalScore: { $ne: null },
-        _id: { $ne: latestAttempt._id },
-      })
-        .sort({ completedAt: -1 })
-        .lean()
-
-      let trend: 'improving' | 'worsening' | 'stable' = 'stable'
-      if (previousAttempt?.totalScore != null && latestAttempt.totalScore != null) {
-        if (latestAttempt.totalScore < previousAttempt.totalScore) trend = 'improving'
-        else if (latestAttempt.totalScore > previousAttempt.totalScore) trend = 'worsening'
-      }
-
+    if (latestAttempt?.completedAt) {
       const mod = latestAttempt.module as unknown as { title: string }
-      latestScore = {
+      latestCompletion = {
+        attemptId: latestAttempt._id.toString(),
         moduleTitle: mod.title,
-        score: latestAttempt.totalScore!,
-        band: latestAttempt.scoreBandLabel ?? 'unknown',
-        trend,
+        completedAt: latestAttempt.completedAt.toISOString(),
       }
     }
 
@@ -77,7 +56,7 @@ export const getProfileStats = async (req: Request, res: Response): Promise<void
     })
 
     const response: PatientProfileStatsResponse = {
-      latestScore,
+      latestCompletion,
       sessionsThisWeek,
       assignmentsDue,
     }
