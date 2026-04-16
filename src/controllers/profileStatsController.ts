@@ -42,10 +42,10 @@ export const getProfileStats = async (req: Request, res: Response): Promise<void
       }
     }
 
-    // Sessions completed this week
-    const sessionsThisWeek = await ModuleAttempt.countDocuments({
+    // Assignments completed this week
+    const sessionsThisWeek = await ModuleAssignment.countDocuments({
       user: userId,
-      status: 'submitted',
+      status: 'completed',
       completedAt: { $gte: weekStart },
     })
 
