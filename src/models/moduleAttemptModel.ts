@@ -45,6 +45,32 @@ interface IGeneralGoals {
   previousRatings?: IPreviousRating[]
 }
 
+interface IWeeklyGoalPlannedDiaryRef {
+  at: Date
+  label?: string
+}
+
+interface IWeeklyGoalEntry {
+  goalText: string
+  completed?: boolean
+  masteryRating?: number | null
+  pleasureRating?: number | null
+  plannedDiaryEntryRef?: IWeeklyGoalPlannedDiaryRef | null
+  completionNotes?: string | null
+}
+
+interface IWeeklyGoalsReflection {
+  moodImpact?: string
+  takeaway?: string
+  balance?: string
+  barriers?: string
+}
+
+interface IWeeklyGoals {
+  goals?: IWeeklyGoalEntry[]
+  reflection?: IWeeklyGoalsReflection
+}
+
 interface IModuleAttempt extends Document {
   user: Types.ObjectId
   therapist?: Types.ObjectId // snapshot for easy therapist queries
@@ -56,6 +82,7 @@ interface IModuleAttempt extends Document {
     | 'activity_diary'
     | 'five_areas_model'
     | 'general_goals'
+    | 'weekly_goals'
 
   // lifecycle
   status: AttemptStatus
@@ -94,6 +121,9 @@ interface IModuleAttempt extends Document {
   // General Goals
   generalGoals?: IGeneralGoals
 
+  // Weekly Goals
+  weeklyGoals?: IWeeklyGoals
+
   // notes / metadata
   userNote?: string
   therapistNote?: string
@@ -125,7 +155,7 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
     },
     moduleType: {
       type: String,
-      enum: ['questionnaire', 'reading', 'activity_diary', 'five_areas_model', 'general_goals'],
+      enum: ['questionnaire', 'reading', 'activity_diary', 'five_areas_model', 'general_goals', 'weekly_goals'],
       required: true,
     },
 
@@ -197,6 +227,29 @@ const ModuleAttemptSchema = new Schema<IModuleAttempt>(
           ratings: [{ type: Number, min: 0, max: 10 }],
         },
       ],
+    },
+
+    // Weekly Goals
+    weeklyGoals: {
+      goals: [
+        {
+          goalText: { type: String, trim: true, maxlength: 500 },
+          completed: { type: Boolean, default: false },
+          masteryRating: { type: Number, min: 0, max: 10, default: null },
+          pleasureRating: { type: Number, min: 0, max: 10, default: null },
+          plannedDiaryEntryRef: {
+            at: { type: Date },
+            label: { type: String, trim: true, maxlength: 100 },
+          },
+          completionNotes: { type: String, trim: true, maxlength: 500, default: null },
+        },
+      ],
+      reflection: {
+        moodImpact: { type: String, trim: true, maxlength: 2000 },
+        takeaway: { type: String, trim: true, maxlength: 2000 },
+        balance: { type: String, trim: true, maxlength: 2000 },
+        barriers: { type: String, trim: true, maxlength: 2000 },
+      },
     },
 
     contentVersion: Number,
