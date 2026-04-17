@@ -153,6 +153,7 @@ const createModule = async (req: Request, res: Response) => {
       'activity_diary',
       'five_areas_model',
       'general_goals',
+      'weekly_goals',
     ]
     if (!allowedTypes.includes(type)) {
       res.status(400).json({
