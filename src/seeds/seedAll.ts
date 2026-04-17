@@ -141,7 +141,13 @@ interface BandData {
 interface ModuleData {
   title: string
   description: string
-  type: 'questionnaire' | 'reading' | 'activity_diary' | 'five_areas_model' | 'general_goals'
+  type:
+    | 'questionnaire'
+    | 'reading'
+    | 'activity_diary'
+    | 'five_areas_model'
+    | 'general_goals'
+    | 'weekly_goals'
   accessPolicy: 'open' | 'assigned'
   disclaimer?: string
   imageUrl?: string
@@ -371,6 +377,16 @@ const PROGRAMS: ProgramData[] = [
         disclaimer:
           'This goal-tracking tool supports your therapy but does not replace professional guidance. Discuss your goals with your therapist.',
         imageUrl: 'https://placehold.co/600x400?text=General+Goals',
+      },
+      {
+        title: 'Weekly Goals',
+        description:
+          'Plan what you want to do this week — small behavioural goals you can tick off as you complete them. At week-end, reflect on what helped your mood, what got in the way, and what you want to adjust next week.',
+        type: 'weekly_goals',
+        accessPolicy: 'assigned',
+        disclaimer:
+          'Weekly Goals are a tool to support your therapy, not a replacement for professional guidance. Discuss each week with your therapist to agree what is realistic.',
+        imageUrl: 'https://placehold.co/600x400?text=Weekly+Goals',
       },
     ],
   },
