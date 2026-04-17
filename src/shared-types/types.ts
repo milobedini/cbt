@@ -115,6 +115,7 @@ export type ModuleType =
   | 'activity_diary'
   | 'five_areas_model'
   | 'general_goals'
+  | 'weekly_goals'
 
 export type FiveAreasData = {
   situation: string
@@ -140,6 +141,32 @@ export type GeneralGoalsData = {
   reflection: string
   isReRating: boolean
   previousRatings: PreviousRating[]
+}
+
+export type WeeklyGoalPlannedDiaryRef = {
+  at: string // ISO datetime
+  label?: string
+}
+
+export type WeeklyGoalEntry = {
+  goalText: string
+  completed: boolean
+  masteryRating: number | null
+  pleasureRating: number | null
+  plannedDiaryEntryRef: WeeklyGoalPlannedDiaryRef | null
+  completionNotes: string | null
+}
+
+export type WeeklyGoalsReflection = {
+  moodImpact: string
+  takeaway: string
+  balance: string
+  barriers: string
+}
+
+export type WeeklyGoalsData = {
+  goals: WeeklyGoalEntry[]
+  reflection: WeeklyGoalsReflection
 }
 
 export type Module = {
@@ -246,6 +273,7 @@ export type ModuleAttempt = {
   readerNote?: string
   fiveAreas?: FiveAreasData
   generalGoals?: GeneralGoalsData
+  weeklyGoals?: WeeklyGoalsData
   createdAt: string
   updatedAt: string
 }
@@ -349,6 +377,11 @@ export type SaveProgressInput = {
   fiveAreas?: Partial<FiveAreasData>
   // general goals
   generalGoals?: Partial<GeneralGoalsData>
+  // weekly goals
+  weeklyGoals?: Partial<{
+    goals: Array<Partial<WeeklyGoalEntry>>
+    reflection: Partial<WeeklyGoalsReflection>
+  }>
   // common
   userNote?: string
 }
@@ -758,6 +791,7 @@ export type AttemptDetailResponseItem = ModuleAttempt & {
   diary?: DiaryDetail
   fiveAreas?: FiveAreasData
   generalGoals?: GeneralGoalsData
+  weeklyGoals?: WeeklyGoalsData
   patient?: Pick<AuthUser, '_id' | 'name' | 'username' | 'email'>
   module?: Pick<Module, '_id' | 'title' | 'type'>
 }
