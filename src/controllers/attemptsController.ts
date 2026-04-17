@@ -289,6 +289,49 @@ export const saveProgress = async (req: Request, res: Response) => {
       return
     }
 
+    if (attempt.moduleType === 'weekly_goals') {
+      const { weeklyGoals } = req.body as {
+        weeklyGoals?: Partial<{
+          goals: unknown[]
+          reflection: Partial<{
+            moodImpact: string
+            takeaway: string
+            balance: string
+            barriers: string
+          }>
+        }>
+      }
+
+      if (weeklyGoals) {
+        const existing =
+          (
+            attempt.weeklyGoals as unknown as {
+              toObject?: () => Record<string, unknown>
+            }
+          )?.toObject?.() ?? attempt.weeklyGoals ?? {}
+
+        const merged: Record<string, unknown> = { ...existing }
+
+        if (Array.isArray(weeklyGoals.goals)) {
+          merged.goals = sanitiseWeeklyGoalItems(weeklyGoals.goals)
+        }
+        if (weeklyGoals.reflection) {
+          merged.reflection = mergeReflection(
+            existing.reflection as Record<string, string> | undefined,
+            weeklyGoals.reflection
+          )
+        }
+
+        attempt.weeklyGoals = merged as typeof attempt.weeklyGoals
+      }
+
+      if (typeof userNote === 'string') attempt.userNote = userNote
+      attempt.lastInteractionAt = new Date()
+      await attempt.save()
+      res.status(200).json({ success: true, attempt })
+      return
+    }
+
     if (attempt.moduleType === 'activity_diary') {
       if (Array.isArray(diaryEntries)) {
         const sanitized = sanitizeDiaryEntries(diaryEntries)
