@@ -25,6 +25,11 @@ import {
   DiaryEntryInput,
 } from '../utils/diaryUtils'
 import { computeNextDueDate } from '../utils/practiceUtils'
+import {
+  emptyReflection,
+  mergeReflection,
+  sanitiseWeeklyGoalItems,
+} from '../utils/weeklyGoalsUtils'
 
 // Re-export for consumers that import from this file
 export { computePercentCompleteForAttempt }
@@ -164,6 +169,15 @@ export const startAttempt = async (req: Request, res: Response) => {
 
         await attempt.save()
       }
+    }
+
+    // Initialise empty weeklyGoals shape so the FE can assume structure exists
+    if (mod.type === 'weekly_goals') {
+      attempt.weeklyGoals = {
+        goals: [],
+        reflection: emptyReflection(),
+      } as typeof attempt.weeklyGoals
+      await attempt.save()
     }
 
     if (assignment && assignment.status === 'assigned') {
