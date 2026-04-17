@@ -771,6 +771,136 @@ export const submitAttempt = async (req: Request, res: Response) => {
       return
     }
 
+    if (attempt.moduleType === 'weekly_goals') {
+      const goals = (attempt.weeklyGoals?.goals ?? []) as Array<{
+        goalText?: string
+        masteryRating?: number | null
+        pleasureRating?: number | null
+      }>
+
+      if (goals.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'Please add at least one goal before submitting',
+        })
+        return
+      }
+      if (goals.length > 7) {
+        res.status(400).json({
+          success: false,
+          message: 'A maximum of 7 goals is allowed',
+        })
+        return
+      }
+
+      const hasEmptyText = goals.some((g) => !g.goalText?.trim())
+      if (hasEmptyText) {
+        res.status(400).json({
+          success: false,
+          message: 'Each goal must have text',
+        })
+        return
+      }
+
+      const isValidRating = (r: number | null | undefined): boolean =>
+        r === null || r === undefined
+          ? true
+          : typeof r === 'number' && r >= 0 && r <= 10
+      const hasInvalidRating = goals.some(
+        (g) => !isValidRating(g.masteryRating) || !isValidRating(g.pleasureRating)
+      )
+      if (hasInvalidRating) {
+        res.status(400).json({
+          success: false,
+          message: 'Ratings must be between 0 and 10',
+        })
+        return
+      }
+
+      const reflection = attempt.weeklyGoals?.reflection ?? {}
+      const reflectionKeys: Array<
+        'moodImpact' | 'takeaway' | 'balance' | 'barriers'
+      > = ['moodImpact', 'takeaway', 'balance', 'barriers']
+      const hasAnyReflection = reflectionKeys.some(
+        (k) =>
+          typeof (reflection as Record<string, unknown>)[k] === 'string' &&
+          ((reflection as Record<string, string>)[k] ?? '').trim().length > 0
+      )
+      if (!hasAnyReflection) {
+        res.status(400).json({
+          success: false,
+          message: 'Please share a reflection before submitting',
+        })
+        return
+      }
+
+      attempt.completedAt = now
+      attempt.lastInteractionAt = now
+      attempt.status = 'submitted'
+      attempt.durationSecs = attempt.startedAt
+        ? Math.max(
+            0,
+            Math.floor((now.getTime() - attempt.startedAt.getTime()) / 1000)
+          )
+        : undefined
+
+      const me = await User.findById(userId, 'therapist')
+      attempt.therapist = me?.therapist
+      await attempt.save()
+
+      if (!assignmentId) {
+        const possible = await findActiveAssignment(
+          attempt.user as Types.ObjectId,
+          attempt.module as Types.ObjectId,
+          attempt.therapist as Types.ObjectId
+        )
+        if (possible) assignmentId = String(possible._id)
+      }
+      if (assignmentId) {
+        await ModuleAssignment.findByIdAndUpdate(assignmentId, {
+          latestAttempt: attempt._id,
+          status: 'completed',
+          completedAt: now,
+        })
+      }
+
+      // Auto-generate next recurring assignment
+      if (assignmentId) {
+        const completedAssignment =
+          await ModuleAssignment.findById(assignmentId).lean()
+        if (
+          completedAssignment?.recurrence?.freq &&
+          completedAssignment.recurrence.freq !== 'none'
+        ) {
+          const nextDueAt = computeNextDueDate(
+            completedAssignment.dueAt,
+            now,
+            completedAssignment.recurrence.freq,
+            completedAssignment.recurrence.interval
+          )
+          await ModuleAssignment.create({
+            user: completedAssignment.user,
+            therapist: completedAssignment.therapist,
+            program: completedAssignment.program,
+            module: completedAssignment.module,
+            moduleType: completedAssignment.moduleType,
+            status: 'assigned',
+            source:
+              (completedAssignment as any).source ?? 'therapist',
+            dueAt: nextDueAt,
+            recurrence: completedAssignment.recurrence,
+            recurrenceGroupId:
+              (completedAssignment as any).recurrenceGroupId ??
+              completedAssignment._id,
+            notes: completedAssignment.notes,
+          })
+        }
+      }
+
+      res.status(200).json({ success: true, attempt })
+      return
+    }
+
     if (attempt.moduleType === 'questionnaire') {
       const questions = await Question.find({ module: attempt.module })
         .select('_id')
