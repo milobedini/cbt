@@ -16,7 +16,14 @@ type IJobRun = Document & {
   errors: IJobError[];
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const JobErrorSchema = new Schema<IJobError>(
+  {
+    dimension: { type: String, required: true },
+    message: { type: String, required: true },
+  },
+  { _id: false },
+);
+
 const JobRunSchema = new Schema<IJobRun>(
   {
     job: { type: String, required: true, index: true },
@@ -28,8 +35,8 @@ const JobRunSchema = new Schema<IJobRun>(
       required: true,
     },
     rowsWritten: { type: Number, default: 0 },
-    errors: [{ dimension: { type: String }, message: { type: String } }],
-  } as any,
+    errors: { type: [JobErrorSchema], default: [] },
+  },
   { collection: "jobRuns" },
 );
 
