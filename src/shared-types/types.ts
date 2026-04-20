@@ -82,9 +82,19 @@ export type ProfileResponse = {
 
 export type VerifyTherapistInput = {
   therapistId: string;
+  therapistTier: TherapistTier;
 };
 
 export type VerifyTherapistResponse = {
+  message: string;
+  therapist: AuthUser;
+};
+
+export type UnverifyTherapistInput = {
+  therapistId: string;
+};
+
+export type UnverifyTherapistResponse = {
   message: string;
   therapist: AuthUser;
 };
