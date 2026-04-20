@@ -10,7 +10,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "publish": "npm --prefix src/shared-types run publish:pkg",
-    "seed-all": "ts-node ./src/seeds/seedAll.ts"
+    "seed-all": "ts-node ./src/seeds/seedAll.ts",
+    "seed:clinical-metadata": "ts-node ./src/seeds/seedClinicalMetadata.ts"
   },
   "repository": {
     "type": "git",
