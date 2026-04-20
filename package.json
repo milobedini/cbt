@@ -12,6 +12,7 @@
     "publish": "npm --prefix src/shared-types run publish:pkg",
     "seed-all": "ts-node ./src/seeds/seedAll.ts",
     "seed:clinical-metadata": "ts-node ./src/seeds/seedClinicalMetadata.ts",
+    "seed:admin-dev": "ts-node ./src/seeds/seedAdminDev.ts",
     "rollup-metrics": "ts-node ./src/jobs/rollupMetricsCli.ts"
   },
   "repository": {
