@@ -1044,3 +1044,142 @@ export type OutcomeResult = {
   suppressed: boolean;
   reason: "below_k" | "below_min_n" | null;
 };
+
+// ==================================
+// Admin — response shapes (v2)
+// ==================================
+export type AdminOverviewResponse = {
+  asOf: string;
+  rollupAsOf: string | null;
+  privacyMode: PrivacyMode;
+  operational: {
+    users: {
+      total: number;
+      patients: number;
+      therapists: {
+        total: number;
+        verified: number;
+        unverified: number;
+        zeroPatients: number;
+      };
+      newThisWeek: number;
+      newLastWeek: number;
+      activeLast30d: number;
+      activeLast30dPrevious: number;
+    };
+    work: {
+      completedAttemptsLast7d: number;
+      completedAttemptsPreviousWeek: number;
+      stalledAttempts7d: number;
+      orphanedAssignments: number;
+      byType: Array<{ moduleType: ModuleType; count: number }>;
+    };
+    audit: { eventsLast7d: number };
+  };
+  programmes: Array<{
+    programmeId: string;
+    title: string;
+    enrolledUsers: number;
+    outcomes: {
+      window: "last_90d";
+      instrument: Instrument;
+      recovery: OutcomeResult;
+      reliableImprovement: OutcomeResult;
+      reliableRecovery: OutcomeResult;
+    } | null;
+  }>;
+  verificationQueue: {
+    count: number;
+    oldest: Array<{
+      userId: string;
+      username: string;
+      email: string;
+      name?: string;
+      createdAt: string;
+      therapistTier: TherapistTier | null;
+    }>;
+  };
+};
+
+export type AdminOutcomesResponse = {
+  asOf: string;
+  rollupAsOf: string | null;
+  privacyMode: PrivacyMode;
+  dimension: {
+    programmeId: string | null;
+    careTier: CareTier | null;
+    instrument: Instrument;
+  };
+  range: { from: string; to: string; granularity: Granularity };
+  series: Array<{
+    bucket: { startsAt: string; endsAt: string };
+    recovery: OutcomeResult;
+    reliableImprovement: OutcomeResult;
+    reliableRecovery: OutcomeResult;
+  }>;
+};
+
+export type AdminProgrammeDetailResponse = {
+  asOf: string;
+  rollupAsOf: string | null;
+  privacyMode: PrivacyMode;
+  programme: { _id: string; title: string; description: string };
+  enrolment: {
+    total: number;
+    byCareTier: Array<{ careTier: CareTier; count: number }>;
+  };
+  outcomesByInstrument: Array<{
+    instrument: Instrument;
+    cutoff: number;
+    reliableChangeDelta: number | null;
+    window: "last_90d";
+    overall: {
+      recovery: OutcomeResult;
+      reliableImprovement: OutcomeResult;
+      reliableRecovery: OutcomeResult;
+    };
+    byCareTier: Array<{
+      careTier: CareTier;
+      recovery: OutcomeResult;
+      reliableImprovement: OutcomeResult;
+      reliableRecovery: OutcomeResult;
+    }>;
+  }>;
+  work: {
+    completedAttemptsLast7d: number;
+    stalledAttempts7d: number;
+    byType: Array<{ moduleType: ModuleType; count: number }>;
+  };
+};
+
+export type AdminAuditEvent = {
+  _id: string;
+  actorId: string;
+  actor: { _id: string; username: string; name?: string };
+  actorRole: "admin";
+  impersonatorId: string | null;
+  action: AuditedAction;
+  resourceType: string;
+  resourceId: string | null;
+  outcome: "success" | "failure";
+  context?: Record<string, unknown>;
+  ip?: string;
+  userAgent?: string;
+  at: string;
+};
+
+export type AdminAuditResponse = {
+  success: true;
+  events: Array<AdminAuditEvent>;
+  nextCursor: string | null;
+};
+
+export type AdminSystemHealthResponse = {
+  rollupLastRun: {
+    startedAt: string;
+    completedAt: string | null;
+    status: "success" | "partial" | "failure";
+    rowsWritten: number;
+  } | null;
+  auditEventsTotal: number;
+};
