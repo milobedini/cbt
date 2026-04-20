@@ -16,7 +16,7 @@ type IJobRun = Document & {
   errors: IJobError[];
 };
 
-const JobErrorSchema = new Schema<IJobError>(
+const JobErrorSchema = new Schema(
   {
     dimension: { type: String, required: true },
     message: { type: String, required: true },
@@ -24,7 +24,7 @@ const JobErrorSchema = new Schema<IJobError>(
   { _id: false },
 );
 
-const JobRunSchema = new Schema<IJobRun>(
+const JobRunSchema = new Schema(
   {
     job: { type: String, required: true, index: true },
     startedAt: { type: Date, required: true },
