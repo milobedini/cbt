@@ -13,7 +13,7 @@ type IJobRun = Document & {
   completedAt: Date | null;
   status: JobStatus;
   rowsWritten: number;
-  errors: IJobError[];
+  failures: IJobError[];
 };
 
 const JobErrorSchema = new Schema(
@@ -35,7 +35,7 @@ const JobRunSchema = new Schema(
       required: true,
     },
     rowsWritten: { type: Number, default: 0 },
-    errors: { type: [JobErrorSchema], default: [] },
+    failures: { type: [JobErrorSchema], default: [] },
   },
   { collection: "jobRuns" },
 );

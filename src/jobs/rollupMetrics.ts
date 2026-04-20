@@ -241,7 +241,7 @@ export const runNightlyRollup = async (
     status: "success",
   });
   let rowsWritten = 0;
-  const errors: Array<{ dimension: string; message: string }> = [];
+  const failures: Array<{ dimension: string; message: string }> = [];
 
   try {
     // 1. Current week bucket
@@ -262,7 +262,7 @@ export const runNightlyRollup = async (
       rowsWritten += await runRollupForBucket(prevMonth);
     }
   } catch (err) {
-    errors.push({ dimension: "run", message: (err as Error).message });
+    failures.push({ dimension: "run", message: (err as Error).message });
   }
 
   await JobRun.updateOne(
@@ -270,9 +270,9 @@ export const runNightlyRollup = async (
     {
       $set: {
         completedAt: new Date(),
-        status: errors.length ? "partial" : "success",
+        status: failures.length ? "partial" : "success",
         rowsWritten,
-        errors,
+        failures,
       },
     },
   );
