@@ -592,6 +592,8 @@ const adminVerifyTherapist = async (
   }
 };
 
+// DEPRECATED: superseded by GET /api/admin/overview. Kept for one release to avoid FE outage.
+// Remove after FE v2 ships and has been live for at least 7 days.
 const adminStats = async (req: Request, res: Response): Promise<void> => {
   // Return number of users, of which therapists and patients.
   // Return unverified therapists in list
