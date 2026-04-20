@@ -2,6 +2,7 @@ import {
   addRemoveTherapist,
   adminStats,
   adminVerifyTherapist,
+  adminUnverifyTherapist,
   getAllPatients,
   getClients,
   getUser,
@@ -36,6 +37,7 @@ router.get("/clients", getClients);
 router.get("/admin/stats", adminStats);
 router.post("/assign", addRemoveTherapist);
 router.post("/verify", adminVerifyTherapist);
+router.post("/unverify", adminUnverifyTherapist);
 
 // ✅ Patient: my submitted attempts (cursor-paginated)
 router.get("/attempts", getMyAttempts);

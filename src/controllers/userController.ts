@@ -598,12 +598,57 @@ const adminStats = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+const adminUnverifyTherapist = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const userId = req.user?._id;
+    const { therapistId } = req.body as { therapistId?: string };
+
+    const user = await User.findById(userId);
+    if (!user || !user.roles.includes(UserRole.ADMIN)) {
+      res.status(403).json({ message: "Only admins can unverify therapists" });
+      return;
+    }
+
+    const therapist = await User.findById(therapistId);
+    if (!therapist || !therapist.roles.includes(UserRole.THERAPIST)) {
+      res.status(404).json({ message: "Therapist not found" });
+      await logAdminAction(req, {
+        action: "therapist.unverified",
+        resourceType: "therapist",
+        resourceId: therapistId ?? null,
+        outcome: "failure",
+        context: { reason: "not_found" },
+      });
+      return;
+    }
+
+    therapist.isVerifiedTherapist = false;
+    // Keep therapistTier so we remember their category; unset only on request.
+    await therapist.save();
+
+    await logAdminAction(req, {
+      action: "therapist.unverified",
+      resourceType: "therapist",
+      resourceId: therapist._id as Types.ObjectId,
+      outcome: "success",
+    });
+
+    res.status(200).json({ message: "Therapist unverified", therapist });
+  } catch (error) {
+    errorHandler(res, error);
+  }
+};
+
 export {
   getUser,
   getAllPatients,
   getClients,
   addRemoveTherapist,
   adminVerifyTherapist,
+  adminUnverifyTherapist,
   adminStats,
   getUsers,
 };
