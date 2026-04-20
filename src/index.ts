@@ -13,7 +13,14 @@ import cookieParser from "cookie-parser";
 import authenticateUser from "./middleware/authMiddleware";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import { readThresholds } from "./utils/thresholds";
+import { startScheduler, stopScheduler } from "./jobs/scheduler";
 dotenv.config();
+
+const thresholds = readThresholds();
+console.log(
+  `[boot] thresholds k=${thresholds.k} minN=${thresholds.minN} privacyMode=${thresholds.privacyMode}`,
+);
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -32,6 +39,7 @@ if (!isDev) {
 }
 
 connectDB();
+startScheduler();
 
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
@@ -88,6 +96,7 @@ const server = app.listen(PORT, () => {
 
 // Graceful shutdown
 const shutdown = async () => {
+  stopScheduler();
   console.log("Shutting down gracefully...");
   server.close(async () => {
     await mongoose.connection.close();
