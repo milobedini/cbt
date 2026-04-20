@@ -1,66 +1,67 @@
-import mongoose, { Document, Schema, Types } from 'mongoose'
+import mongoose, { Document, Schema, Types } from "mongoose";
 
 enum UserRole {
-  THERAPIST = 'therapist',
-  PATIENT = 'patient',
-  ADMIN = 'admin',
+  THERAPIST = "therapist",
+  PATIENT = "patient",
+  ADMIN = "admin",
 }
 
 type IUser = Document & {
-  username: string
-  email: string
-  password: string
-  name?: string
-  createdAt: Date
-  updatedAt: Date
-  verificationCode?: string
-  verificationCodeExpires?: Date
-  isVerified?: boolean
-  resetPasswordToken?: string
-  resetPasswordExpires?: Date
-  lastLogin: Date
-  roles: UserRole[]
-  isVerifiedTherapist?: boolean
-  patients?: Types.ObjectId[]
-  therapist?: Types.ObjectId
-}
+  username: string;
+  email: string;
+  password: string;
+  name?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  verificationCode?: string;
+  verificationCodeExpires?: Date;
+  isVerified?: boolean;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
+  lastLogin: Date;
+  roles: UserRole[];
+  isVerifiedTherapist?: boolean;
+  therapistTier?: "cbt" | "pwp";
+  patients?: Types.ObjectId[];
+  therapist?: Types.ObjectId;
+};
 
 const userSchema = new mongoose.Schema<IUser>(
   {
     username: {
       type: String,
-      required: [true, 'Username is required!'],
+      required: [true, "Username is required!"],
       unique: true,
       trim: true,
       lowercase: true,
-      minlength: [3, 'Username must be at least 3 characters long!'],
-      maxlength: [20, 'Username cannot exceed 20 characters!'],
+      minlength: [3, "Username must be at least 3 characters long!"],
+      maxlength: [20, "Username cannot exceed 20 characters!"],
     },
     email: {
       type: String,
-      required: [true, 'Email is required!'],
+      required: [true, "Email is required!"],
       unique: true,
       trim: true,
       lowercase: true,
       validate: {
         validator: function (value: string): boolean {
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-          return emailRegex.test(value)
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          return emailRegex.test(value);
         },
-        message: 'Invalid email format!',
+        message: "Invalid email format!",
       },
     },
     password: {
       type: String,
-      required: [true, 'Password is required!'],
-      minlength: [8, 'Password must be at least 8 characters long!'],
+      required: [true, "Password is required!"],
+      minlength: [8, "Password must be at least 8 characters long!"],
       select: false,
     },
     name: {
       type: String,
       trim: true,
-      minlength: [2, 'Name must be at least 2 characters long!'],
-      maxlength: [50, 'Name cannot exceed 50 characters!'],
+      minlength: [2, "Name must be at least 2 characters long!"],
+      maxlength: [50, "Name cannot exceed 50 characters!"],
     },
     verificationCode: {
       type: String,
@@ -88,43 +89,48 @@ const userSchema = new mongoose.Schema<IUser>(
     roles: {
       type: [String],
       enum: Object.values(UserRole),
-      required: [true, 'At least one user role is required!'],
+      required: [true, "At least one user role is required!"],
       validate: {
         validator: (arr: string[]) => arr.length > 0,
-        message: 'User must have at least one role!',
+        message: "User must have at least one role!",
       },
     },
     isVerifiedTherapist: {
       type: Boolean,
       default: false,
     },
+    therapistTier: {
+      type: String,
+      enum: ["cbt", "pwp"],
+      default: undefined,
+    },
     patients: {
       type: [Schema.Types.ObjectId],
-      ref: 'User',
+      ref: "User",
       default: [],
     },
     therapist: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
     },
   },
   {
     timestamps: true,
-    collection: 'users-data',
-  }
-)
+    collection: "users-data",
+  },
+);
 
-userSchema.index({ roles: 1 })
-userSchema.index({ isVerified: 1 })
-userSchema.index({ isVerifiedTherapist: 1 })
-userSchema.index({ therapist: 1 })
-userSchema.index({ createdAt: -1 })
-userSchema.index({ lastLogin: -1 })
+userSchema.index({ roles: 1 });
+userSchema.index({ isVerified: 1 });
+userSchema.index({ isVerifiedTherapist: 1 });
+userSchema.index({ therapist: 1 });
+userSchema.index({ createdAt: -1 });
+userSchema.index({ lastLogin: -1 });
 
 // username and email already indexed via `unique: true`
-userSchema.index({ name: 1 })
+userSchema.index({ name: 1 });
 
-const User = mongoose.model<IUser>('User', userSchema)
+const User = mongoose.model<IUser>("User", userSchema);
 
-export default User
-export { IUser, UserRole }
+export default User;
+export { IUser, UserRole };
