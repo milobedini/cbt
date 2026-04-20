@@ -50,47 +50,17 @@ export const getAdminOutcomes = async (
     const now = new Date();
     const thresholds = readThresholds();
 
-    // Only enumerate buckets when explicit from/to are provided
-    if (!from || !to) {
-      const defaultFrom =
-        gran === "month"
-          ? DateTime.fromJSDate(now, { zone: "Europe/London" })
-              .minus({ months: 12 })
-              .toJSDate()
-          : DateTime.fromJSDate(now, { zone: "Europe/London" })
-              .minus({ weeks: 12 })
-              .toJSDate();
+    const defaultFrom =
+      gran === "month"
+        ? DateTime.fromJSDate(now, { zone: "Europe/London" })
+            .minus({ months: 12 })
+            .toJSDate()
+        : DateTime.fromJSDate(now, { zone: "Europe/London" })
+            .minus({ weeks: 12 })
+            .toJSDate();
 
-      const lastRollup = await JobRun.findOne({
-        job: "rollupMetrics",
-        status: "success",
-      })
-        .sort({ completedAt: -1 })
-        .lean();
-
-      res.status(200).json({
-        asOf: now.toISOString(),
-        rollupAsOf: lastRollup?.completedAt
-          ? lastRollup.completedAt.toISOString()
-          : null,
-        privacyMode: thresholds.privacyMode,
-        dimension: {
-          programmeId: programmeIdNorm ? programmeIdNorm.toString() : null,
-          careTier: careTierNorm,
-          instrument,
-        },
-        range: {
-          from: defaultFrom.toISOString(),
-          to: now.toISOString(),
-          granularity: gran,
-        },
-        series: [],
-      });
-      return;
-    }
-
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
+    const fromDate = from ? new Date(from) : defaultFrom;
+    const toDate = to ? new Date(to) : now;
     if (fromDate.getTime() > toDate.getTime()) {
       res.status(400).json({ message: "from must be <= to" });
       return;

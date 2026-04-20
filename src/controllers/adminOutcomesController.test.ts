@@ -14,14 +14,23 @@ describe("GET /api/admin/outcomes", () => {
     process.env.JWT_SECRET = "test-secret";
   });
 
-  it("returns empty series for instrument with no data", async () => {
+  it("returns populated time-axis with suppressed cells when no rollup data exists", async () => {
     const admin = await createUser({ role: "admin" });
     const res = await request(buildTestApp())
       .get("/api/admin/outcomes?instrument=phq9&granularity=month")
       .set("Cookie", [`token=${signToken(admin._id.toString())}`]);
     expect(res.status).toBe(200);
     expect(res.body.dimension.instrument).toBe("phq9");
-    expect(res.body.series).toEqual([]);
+    // Default range = last 12 months; every bucket suppressed with n=0
+    expect(res.body.series.length).toBeGreaterThan(0);
+    for (const b of res.body.series) {
+      expect(b.recovery).toEqual({
+        rate: null,
+        n: 0,
+        suppressed: true,
+        reason: "below_k",
+      });
+    }
   });
 
   it("400s on missing instrument", async () => {
