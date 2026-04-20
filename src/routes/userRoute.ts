@@ -75,4 +75,7 @@ router.get("/therapist/patients/:patientId/practice", getPatientPractice);
 // ✅ Therapist: review feed
 router.get("/therapist/review", getTherapistReview);
 
+// ✅ Admin: look up any user by id (must come after all specific GET routes)
+router.get("/:id", getUser);
+
 export default router;

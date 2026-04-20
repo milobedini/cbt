@@ -33,16 +33,50 @@ const toDate = (v?: string) => (v ? new Date(v) : undefined);
 
 const getUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user?._id;
-    const user = await User.findById(
-      userId,
+    const requesterId = req.user?._id;
+    const requester = await User.findById(requesterId);
+    if (!requester) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    // If a param id is given, only admin can look up someone else
+    const targetIdParam = req.params.id;
+    const targetId =
+      targetIdParam && targetIdParam !== "me"
+        ? targetIdParam
+        : requesterId?.toString();
+
+    if (
+      targetId !== requesterId?.toString() &&
+      !requester.roles.includes(UserRole.ADMIN)
+    ) {
+      res.status(403).json({ message: "Admin access required" });
+      return;
+    }
+
+    const target = await User.findById(
+      targetId,
       "_id username email name roles isVerifiedTherapist patients therapist createdAt",
     ).populate("therapist", "_id username email name isVerifiedTherapist");
-    if (!user) {
+    if (!target) {
       res.status(404).json({ message: "User not found" });
       return;
     }
-    res.status(200).json(user);
+
+    if (
+      requester.roles.includes(UserRole.ADMIN) &&
+      targetId !== requesterId?.toString()
+    ) {
+      await logAdminAction(req, {
+        action: "user.viewed",
+        resourceType: "user",
+        resourceId: target._id as Types.ObjectId,
+        outcome: "success",
+      });
+    }
+
+    res.status(200).json(target);
   } catch (error) {
     errorHandler(res, error);
   }
