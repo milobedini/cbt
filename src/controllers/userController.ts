@@ -1,129 +1,132 @@
-import { Request, Response } from 'express'
-import mongoose from 'mongoose'
-import User, { type IUser, UserRole } from '../models/userModel'
-import ModuleAttempt from '../models/moduleAttemptModel'
-import { errorHandler } from '../utils/errorHandler'
-import { isValidObjectId, Types } from 'mongoose'
+import { Request, Response } from "express";
+import mongoose from "mongoose";
+import User, { type IUser, UserRole } from "../models/userModel";
+import ModuleAttempt from "../models/moduleAttemptModel";
+import { errorHandler } from "../utils/errorHandler";
+import { isValidObjectId, Types } from "mongoose";
+import { logAdminAction } from "../utils/audit";
 
 // Helpers
 const escapeRegex = (str: string): string =>
-  str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-type Boolish = boolean | undefined
+type Boolish = boolean | undefined;
 
 const parseBool = (v: unknown): Boolish => {
-  if (v === undefined) return undefined
-  if (typeof v === 'boolean') return v
-  if (typeof v === 'string') {
-    const s = v.toLowerCase()
-    if (s === 'true') return true
-    if (s === 'false') return false
+  if (v === undefined) return undefined;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "string") {
+    const s = v.toLowerCase();
+    if (s === "true") return true;
+    if (s === "false") return false;
   }
-  return undefined
-}
+  return undefined;
+};
 
 const splitCSV = (v?: string | string[]) =>
-  (Array.isArray(v) ? v.join(',') : v || '')
-    .split(',')
+  (Array.isArray(v) ? v.join(",") : v || "")
+    .split(",")
     .map((s) => s.trim())
-    .filter(Boolean)
+    .filter(Boolean);
 
-const toDate = (v?: string) => (v ? new Date(v) : undefined)
+const toDate = (v?: string) => (v ? new Date(v) : undefined);
 
 const getUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user?._id
+    const userId = req.user?._id;
     const user = await User.findById(
       userId,
-      '_id username email name roles isVerifiedTherapist patients therapist createdAt',
-    ).populate('therapist', '_id username email name isVerifiedTherapist')
+      "_id username email name roles isVerifiedTherapist patients therapist createdAt",
+    ).populate("therapist", "_id username email name isVerifiedTherapist");
     if (!user) {
-      res.status(404).json({ message: 'User not found' })
-      return
+      res.status(404).json({ message: "User not found" });
+      return;
     }
-    res.status(200).json(user)
+    res.status(200).json(user);
   } catch (error) {
-    errorHandler(res, error)
+    errorHandler(res, error);
   }
-}
+};
 
 // GetUsers - admin route
 const getUsers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const requesterId = req.user?._id
-    const requester = await User.findById(requesterId, 'roles')
+    const requesterId = req.user?._id;
+    const requester = await User.findById(requesterId, "roles");
     if (!requester || !requester.roles.includes(UserRole.ADMIN)) {
-      res.status(403).json({ message: 'Access denied' })
-      return
+      res.status(403).json({ message: "Access denied" });
+      return;
     }
 
     // ------- Parse query options -------
-    const page = Math.max(parseInt(String(req.query.page || '1'), 10) || 1, 1)
+    const page = Math.max(parseInt(String(req.query.page || "1"), 10) || 1, 1);
     const limitRaw = Math.max(
-      parseInt(String(req.query.limit || '25'), 10) || 25,
+      parseInt(String(req.query.limit || "25"), 10) || 25,
       1,
-    )
-    const limit = Math.min(limitRaw, 200)
+    );
+    const limit = Math.min(limitRaw, 200);
 
-    const q = (req.query.q as string | undefined)?.trim()
-    const roles = splitCSV(req.query.roles as string | string[] | undefined)
-    const ids = splitCSV(req.query.ids as string | string[] | undefined)
+    const q = (req.query.q as string | undefined)?.trim();
+    const roles = splitCSV(req.query.roles as string | string[] | undefined);
+    const ids = splitCSV(req.query.ids as string | string[] | undefined);
 
-    const isVerified = parseBool(req.query.isVerified)
-    const isVerifiedTherapist = parseBool(req.query.isVerifiedTherapist)
-    const hasTherapist = parseBool(req.query.hasTherapist)
+    const isVerified = parseBool(req.query.isVerified);
+    const isVerifiedTherapist = parseBool(req.query.isVerifiedTherapist);
+    const hasTherapist = parseBool(req.query.hasTherapist);
 
-    const therapistId = (req.query.therapistId as string | undefined)?.trim()
+    const therapistId = (req.query.therapistId as string | undefined)?.trim();
 
-    const createdFrom = toDate(req.query.createdFrom as string | undefined)
-    const createdTo = toDate(req.query.createdTo as string | undefined)
-    const lastLoginFrom = toDate(req.query.lastLoginFrom as string | undefined)
-    const lastLoginTo = toDate(req.query.lastLoginTo as string | undefined)
+    const createdFrom = toDate(req.query.createdFrom as string | undefined);
+    const createdTo = toDate(req.query.createdTo as string | undefined);
+    const lastLoginFrom = toDate(req.query.lastLoginFrom as string | undefined);
+    const lastLoginTo = toDate(req.query.lastLoginTo as string | undefined);
 
-    const sortParam = (req.query.sort as string | undefined)?.trim()
-    const selectFields = splitCSV(req.query.select as string | string[] | undefined)
+    const sortParam = (req.query.sort as string | undefined)?.trim();
+    const selectFields = splitCSV(
+      req.query.select as string | string[] | undefined,
+    );
 
     // ------- Build $match (filters) -------
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const match: Record<string, any> = {}
+    const match: Record<string, any> = {};
 
     if (q) {
-      const escaped = escapeRegex(q)
+      const escaped = escapeRegex(q);
       match.$or = [
-        { username: { $regex: escaped, $options: 'i' } },
-        { email: { $regex: escaped, $options: 'i' } },
-        { name: { $regex: escaped, $options: 'i' } },
-      ]
+        { username: { $regex: escaped, $options: "i" } },
+        { email: { $regex: escaped, $options: "i" } },
+        { name: { $regex: escaped, $options: "i" } },
+      ];
     }
 
     if (roles.length) {
-      match.roles = { $in: roles }
+      match.roles = { $in: roles };
     }
 
     if (isVerified !== undefined) {
-      match.isVerified = isVerified
+      match.isVerified = isVerified;
     }
 
     if (isVerifiedTherapist !== undefined) {
-      match.isVerifiedTherapist = isVerifiedTherapist
+      match.isVerifiedTherapist = isVerifiedTherapist;
     }
 
     if (hasTherapist !== undefined) {
       match.therapist = hasTherapist
         ? { $exists: true, $ne: null }
-        : { $in: [null, undefined] }
+        : { $in: [null, undefined] };
     }
 
     if (therapistId && isValidObjectId(therapistId)) {
-      match.therapist = new Types.ObjectId(therapistId)
+      match.therapist = new Types.ObjectId(therapistId);
     }
 
     if (ids.length) {
-      const validIds = ids.filter(isValidObjectId)
+      const validIds = ids.filter(isValidObjectId);
       if (validIds.length) {
         match._id = {
           $in: validIds.map((id: string) => new Types.ObjectId(id)),
-        }
+        };
       } else {
         // No valid ids provided -> empty result quickly
         res.status(200).json({
@@ -138,51 +141,51 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
             isVerifiedTherapist: [],
             hasTherapist: [],
           },
-        })
-        return
+        });
+        return;
       }
     }
 
     if (createdFrom || createdTo) {
-      match.createdAt = {}
-      if (createdFrom) match.createdAt.$gte = createdFrom
-      if (createdTo) match.createdAt.$lte = createdTo
+      match.createdAt = {};
+      if (createdFrom) match.createdAt.$gte = createdFrom;
+      if (createdTo) match.createdAt.$lte = createdTo;
     }
 
     if (lastLoginFrom || lastLoginTo) {
-      match.lastLogin = {}
-      if (lastLoginFrom) match.lastLogin.$gte = lastLoginFrom
-      if (lastLoginTo) match.lastLogin.$lte = lastLoginTo
+      match.lastLogin = {};
+      if (lastLoginFrom) match.lastLogin.$gte = lastLoginFrom;
+      if (lastLoginTo) match.lastLogin.$lte = lastLoginTo;
     }
 
     // ------- Build $sort -------
     const allowedSortFields = new Set([
-      'username',
-      'email',
-      'name',
-      'createdAt',
-      'updatedAt',
-      'lastLogin',
-      'roles',
-      'isVerified',
-      'isVerifiedTherapist',
-    ])
+      "username",
+      "email",
+      "name",
+      "createdAt",
+      "updatedAt",
+      "lastLogin",
+      "roles",
+      "isVerified",
+      "isVerifiedTherapist",
+    ]);
     // Default sort: most recently created first
-    const sort: Record<string, 1 | -1> = {}
+    const sort: Record<string, 1 | -1> = {};
     if (sortParam) {
       // accept "field:asc,other:desc"
       for (const token of sortParam
-        .split(',')
+        .split(",")
         .map((s) => s.trim())
         .filter(Boolean)) {
-        const [field, dirRaw] = token.split(':').map((s) => s.trim())
-        if (!field || !allowedSortFields.has(field)) continue
-        const dir = (dirRaw || 'asc').toLowerCase()
-        sort[field] = dir === 'desc' ? -1 : 1
+        const [field, dirRaw] = token.split(":").map((s) => s.trim());
+        if (!field || !allowedSortFields.has(field)) continue;
+        const dir = (dirRaw || "asc").toLowerCase();
+        sort[field] = dir === "desc" ? -1 : 1;
       }
     }
     if (Object.keys(sort).length === 0) {
-      sort.createdAt = -1
+      sort.createdAt = -1;
     }
 
     // ------- Build $project (safe default, but allow `select`) -------
@@ -199,15 +202,15 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
       createdAt: 1,
       updatedAt: 1,
       lastLogin: 1,
-    } as const
+    } as const;
 
     const project =
       selectFields.length > 0
         ? selectFields.reduce<Record<string, 0 | 1>>((acc, f) => {
-            acc[f] = 1
-            return acc
+            acc[f] = 1;
+            return acc;
           }, {})
-        : safeDefaultProjection
+        : safeDefaultProjection;
 
     // ------- Aggregation with facets (items + total + filter facets) -------
     const pipeline: mongoose.PipelineStage[] = [
@@ -215,14 +218,14 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
       // small lookup to include minimal therapist info:
       {
         $lookup: {
-          from: 'users-data',
-          localField: 'therapist',
-          foreignField: '_id',
-          as: 'therapistInfo',
+          from: "users-data",
+          localField: "therapist",
+          foreignField: "_id",
+          as: "therapistInfo",
           pipeline: [{ $project: { _id: 1, username: 1, email: 1, name: 1 } }],
         },
       },
-      { $addFields: { therapistInfo: { $first: '$therapistInfo' } } },
+      { $addFields: { therapistInfo: { $first: "$therapistInfo" } } },
       {
         $facet: {
           items: [
@@ -231,27 +234,27 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
             { $limit: limit },
             { $project: project },
           ],
-          totalCount: [{ $count: 'count' }],
+          totalCount: [{ $count: "count" }],
           roleFacets: [
-            { $group: { _id: '$roles', count: { $sum: 1 } } },
+            { $group: { _id: "$roles", count: { $sum: 1 } } },
             // roles is an array; explode to counts per individual role
-            { $unwind: { path: '$_id', preserveNullAndEmptyArrays: true } },
-            { $group: { _id: '$_id', count: { $sum: '$count' } } },
+            { $unwind: { path: "$_id", preserveNullAndEmptyArrays: true } },
+            { $group: { _id: "$_id", count: { $sum: "$count" } } },
             { $sort: { _id: 1 } },
           ],
           isVerifiedFacets: [
-            { $group: { _id: '$isVerified', count: { $sum: 1 } } },
+            { $group: { _id: "$isVerified", count: { $sum: 1 } } },
             { $sort: { _id: 1 } },
           ],
           isVerifiedTherapistFacets: [
-            { $group: { _id: '$isVerifiedTherapist', count: { $sum: 1 } } },
+            { $group: { _id: "$isVerifiedTherapist", count: { $sum: 1 } } },
             { $sort: { _id: 1 } },
           ],
           hasTherapistFacets: [
             {
               $group: {
                 _id: {
-                  $cond: [{ $ifNull: ['$therapist', false] }, true, false],
+                  $cond: [{ $ifNull: ["$therapist", false] }, true, false],
                 },
                 count: { $sum: 1 },
               },
@@ -263,19 +266,19 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
       {
         $project: {
           items: 1,
-          total: { $ifNull: [{ $arrayElemAt: ['$totalCount.count', 0] }, 0] },
+          total: { $ifNull: [{ $arrayElemAt: ["$totalCount.count", 0] }, 0] },
           roleFacets: 1,
           isVerifiedFacets: 1,
           isVerifiedTherapistFacets: 1,
           hasTherapistFacets: 1,
         },
       },
-    ]
+    ];
 
-    const [result] = await User.aggregate(pipeline)
+    const [result] = await User.aggregate(pipeline);
 
-    const total: number = result?.total || 0
-    const totalPages = total ? Math.ceil(total / limit) : 0
+    const total: number = result?.total || 0;
+    const totalPages = total ? Math.ceil(total / limit) : 0;
 
     res.status(200).json({
       page,
@@ -289,267 +292,299 @@ const getUsers = async (req: Request, res: Response): Promise<void> => {
         isVerifiedTherapist: result?.isVerifiedTherapistFacets ?? [],
         hasTherapist: result?.hasTherapistFacets ?? [],
       },
-    })
+    });
   } catch (error) {
-    errorHandler(res, error)
+    errorHandler(res, error);
   }
-}
+};
 
 const getAllPatients = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user?._id
+    const userId = req.user?._id;
     const user = await User.findById(
       userId,
-      '_id username email name roles isVerifiedTherapist patients',
-    )
+      "_id username email name roles isVerifiedTherapist patients",
+    );
     if (!user) {
-      res.status(404).json({ message: 'User not found' })
-      return
+      res.status(404).json({ message: "User not found" });
+      return;
     }
     if (
       !user.roles.includes(UserRole.THERAPIST) &&
       !user.roles.includes(UserRole.ADMIN)
     ) {
-      res.status(403).json({ message: 'Access denied' })
-      return
+      res.status(403).json({ message: "Access denied" });
+      return;
     }
     const patients = await User.find(
       { roles: UserRole.PATIENT },
-      '_id username email name therapist',
-    )
+      "_id username email name therapist",
+    );
 
     if (!patients || !patients.length) {
-      res.status(404).json({ message: 'No patients found' })
-      return
+      res.status(404).json({ message: "No patients found" });
+      return;
     }
-    res.status(200).json(patients)
+    res.status(200).json(patients);
   } catch (error) {
-    errorHandler(res, error)
+    errorHandler(res, error);
   }
-}
+};
 
 const getClients = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.user?._id
+    const userId = req.user?._id;
     const user = await User.findById(
       userId,
-      '_id username email name roles isVerifiedTherapist patients',
-    )
+      "_id username email name roles isVerifiedTherapist patients",
+    );
     if (!user) {
-      res.status(404).json({ message: 'User not found' })
-      return
+      res.status(404).json({ message: "User not found" });
+      return;
     }
     if (
       !user.roles.includes(UserRole.THERAPIST) &&
       !user.roles.includes(UserRole.ADMIN)
     ) {
-      res.status(403).json({ message: 'Access denied' })
-      return
+      res.status(403).json({ message: "Access denied" });
+      return;
     }
 
     if (!user.patients?.length) {
-      res.status(200).json([])
-      return
+      res.status(200).json([]);
+      return;
     }
 
     const match: mongoose.FilterQuery<IUser> = {
       _id: { $in: user.patients },
-    }
+    };
 
-    const q = (req.query.q as string | undefined)?.trim()
+    const q = (req.query.q as string | undefined)?.trim();
     if (q) {
-      const escaped = escapeRegex(q)
+      const escaped = escapeRegex(q);
       match.$or = [
-        { username: { $regex: escaped, $options: 'i' } },
-        { email: { $regex: escaped, $options: 'i' } },
-        { name: { $regex: escaped, $options: 'i' } },
-      ]
+        { username: { $regex: escaped, $options: "i" } },
+        { email: { $regex: escaped, $options: "i" } },
+        { name: { $regex: escaped, $options: "i" } },
+      ];
     }
 
-    const sortParam = (req.query.sort as string | undefined)?.trim()
-    const allowedSortFields = new Set(['name', 'username', 'email'])
-    let sort: Record<string, mongoose.SortOrder> = { name: 1 }
+    const sortParam = (req.query.sort as string | undefined)?.trim();
+    const allowedSortFields = new Set(["name", "username", "email"]);
+    let sort: Record<string, mongoose.SortOrder> = { name: 1 };
     if (sortParam) {
-      const desc = sortParam.startsWith('-')
-      const field = desc ? sortParam.slice(1) : sortParam
+      const desc = sortParam.startsWith("-");
+      const field = desc ? sortParam.slice(1) : sortParam;
       if (allowedSortFields.has(field)) {
-        sort = { [field]: desc ? -1 : 1 }
+        sort = { [field]: desc ? -1 : 1 };
       }
     }
 
-    const patients = await User.find(match, '_id username email name therapist')
+    const patients = await User.find(match, "_id username email name therapist")
       .sort(sort)
-      .lean()
+      .lean();
 
-    res.status(200).json(patients)
+    res.status(200).json(patients);
   } catch (error) {
-    errorHandler(res, error)
+    errorHandler(res, error);
   }
-}
+};
 
 const addRemoveTherapist = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
   try {
-    const userId = req.user?._id
-    const { therapistId, patientId } = req.body
+    const userId = req.user?._id;
+    const { therapistId, patientId } = req.body;
 
-    const user = await User.findById(userId)
+    const user = await User.findById(userId);
     if (!user) {
-      res.status(404).json({ message: 'Not logged in' })
-      return
+      res.status(404).json({ message: "Not logged in" });
+      return;
     }
 
     if (
       !user.roles.includes(UserRole.ADMIN) &&
       !user.roles.includes(UserRole.THERAPIST)
     ) {
-      res.status(403).json({ message: 'Access denied' })
-      return
+      res.status(403).json({ message: "Access denied" });
+      return;
     }
 
-    const patient = await User.findById(patientId)
+    const patient = await User.findById(patientId);
     if (!patient) {
-      res.status(404).json({ message: 'Patient not found' })
-      return
+      res.status(404).json({ message: "Patient not found" });
+      return;
     }
 
-    const therapist = await User.findById(therapistId)
+    const therapist = await User.findById(therapistId);
     if (!therapist) {
-      res.status(404).json({ message: 'Therapist not found' })
-      return
+      res.status(404).json({ message: "Therapist not found" });
+      return;
     }
 
     if (!therapist.roles.includes(UserRole.THERAPIST)) {
       res
         .status(403)
-        .json({ message: 'Only therapists can be assigned as therapist' })
-      return
+        .json({ message: "Only therapists can be assigned as therapist" });
+      return;
     }
     if (!therapist.isVerifiedTherapist) {
-      res.status(403).json({ message: 'Therapist is not verified' })
-      return
+      res.status(403).json({ message: "Therapist is not verified" });
+      return;
     }
 
     if (!patient.roles.includes(UserRole.PATIENT)) {
       res
         .status(403)
-        .json({ message: 'Only patients can be assigned as patient' })
-      return
+        .json({ message: "Only patients can be assigned as patient" });
+      return;
     }
 
-    const patientIdObj = patient._id as Types.ObjectId
-    const therapistIdObj = therapist._id as Types.ObjectId
+    const patientIdObj = patient._id as Types.ObjectId;
+    const therapistIdObj = therapist._id as Types.ObjectId;
 
     const alreadyAssigned =
-      patient.therapist?.toString() === therapistId.toString()
+      patient.therapist?.toString() === therapistId.toString();
 
     if (alreadyAssigned) {
-      patient.therapist = undefined
+      patient.therapist = undefined;
       therapist.patients = (therapist.patients || []).filter(
         (id) => !id.equals(patientIdObj),
-      )
+      );
     } else {
-      patient.therapist = therapistIdObj
+      patient.therapist = therapistIdObj;
 
       const alreadyInList = (therapist.patients || []).some((id) =>
         id.equals(patientIdObj),
-      )
+      );
 
       if (!alreadyInList) {
-        therapist.patients = [...(therapist.patients || []), patientIdObj]
+        therapist.patients = [...(therapist.patients || []), patientIdObj];
       }
     }
 
     const message = alreadyAssigned
-      ? 'Therapist removed from patient'
-      : 'Therapist assigned to patient'
+      ? "Therapist removed from patient"
+      : "Therapist assigned to patient";
 
-    const session = await mongoose.startSession()
+    const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
-        await patient.save({ session })
-        await therapist.save({ session })
-      })
+        await patient.save({ session });
+        await therapist.save({ session });
+      });
     } finally {
-      await session.endSession()
+      await session.endSession();
     }
 
     res
       .status(200)
-      .json({ message, patient, therapistPatients: therapist.patients })
+      .json({ message, patient, therapistPatients: therapist.patients });
   } catch (error) {
-    errorHandler(res, error)
+    errorHandler(res, error);
   }
-}
+};
 
 const adminVerifyTherapist = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
   try {
-    const userId = req.user?._id
-    const { therapistId } = req.body
+    const userId = req.user?._id;
+    const { therapistId, therapistTier } = req.body as {
+      therapistId?: string;
+      therapistTier?: "cbt" | "pwp";
+    };
 
-    const user = await User.findById(userId)
+    const user = await User.findById(userId);
     if (!user) {
-      res.status(404).json({ message: 'Not logged in' })
-      return
+      res.status(404).json({ message: "Not logged in" });
+      return;
     }
-
     if (!user.roles.includes(UserRole.ADMIN)) {
-      res.status(403).json({ message: 'Only admins can verify therapists' })
-      return
+      res.status(403).json({ message: "Only admins can verify therapists" });
+      return;
+    }
+    if (!therapistTier || !["cbt", "pwp"].includes(therapistTier)) {
+      res
+        .status(400)
+        .json({ message: "therapistTier is required and must be cbt or pwp" });
+      return;
     }
 
-    const therapist = await User.findById(therapistId)
+    const therapist = await User.findById(therapistId);
     if (!therapist) {
-      res.status(404).json({ message: 'Therapist not found' })
-      return
+      res.status(404).json({ message: "Therapist not found" });
+      await logAdminAction(req, {
+        action: "therapist.verified",
+        resourceType: "therapist",
+        resourceId: therapistId ?? null,
+        outcome: "failure",
+        context: { reason: "not_found" },
+      });
+      return;
     }
-
     if (!therapist.roles.includes(UserRole.THERAPIST)) {
-      res.status(403).json({ message: 'Only therapists can be verified' })
-      return
+      res.status(403).json({ message: "Only therapists can be verified" });
+      await logAdminAction(req, {
+        action: "therapist.verified",
+        resourceType: "therapist",
+        resourceId: therapist._id as Types.ObjectId,
+        outcome: "failure",
+        context: { reason: "not_a_therapist" },
+      });
+      return;
     }
 
-    therapist.isVerifiedTherapist = true
-    await therapist.save()
+    therapist.isVerifiedTherapist = true;
+    therapist.therapistTier = therapistTier;
+    await therapist.save();
+
+    await logAdminAction(req, {
+      action: "therapist.verified",
+      resourceType: "therapist",
+      resourceId: therapist._id as Types.ObjectId,
+      outcome: "success",
+      context: { therapistTier },
+    });
 
     res
       .status(200)
-      .json({ message: 'Therapist verified successfully', therapist })
+      .json({ message: "Therapist verified successfully", therapist });
   } catch (error) {
-    errorHandler(res, error)
+    errorHandler(res, error);
   }
-}
+};
 
 const adminStats = async (req: Request, res: Response): Promise<void> => {
   // Return number of users, of which therapists and patients.
   // Return unverified therapists in list
   // Return completed attempts in last 7 days
   try {
-    const userId = req.user?._id
-    const user = await User.findById(userId)
+    const userId = req.user?._id;
+    const user = await User.findById(userId);
     if (!user || !user.roles.includes(UserRole.ADMIN)) {
-      res.status(403).json({ message: 'Access denied' })
-      return
+      res.status(403).json({ message: "Access denied" });
+      return;
     }
 
-    const totalUsers = await User.countDocuments()
+    const totalUsers = await User.countDocuments();
     const totalTherapists = await User.countDocuments({
       roles: UserRole.THERAPIST,
-    })
-    const totalPatients = await User.countDocuments({ roles: UserRole.PATIENT })
+    });
+    const totalPatients = await User.countDocuments({
+      roles: UserRole.PATIENT,
+    });
     const unverifiedTherapists = await User.find({
       roles: UserRole.THERAPIST,
       isVerifiedTherapist: false,
-    })
+    });
     const completedAttempts = await ModuleAttempt.countDocuments({
-      status: 'submitted',
+      status: "submitted",
       completedAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-    })
+    });
 
     res.status(200).json({
       totalUsers,
@@ -557,11 +592,11 @@ const adminStats = async (req: Request, res: Response): Promise<void> => {
       totalPatients,
       unverifiedTherapists,
       completedAttempts,
-    })
+    });
   } catch (error) {
-    errorHandler(res, error)
+    errorHandler(res, error);
   }
-}
+};
 
 export {
   getUser,
@@ -571,4 +606,4 @@ export {
   adminVerifyTherapist,
   adminStats,
   getUsers,
-}
+};
