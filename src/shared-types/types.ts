@@ -19,6 +19,7 @@ export type UserRole = 'therapist' | 'admin' | 'patient'
 export type AuthUser = User & {
   roles: UserRole[]
   isVerifiedTherapist?: boolean
+  therapistTier?: TherapistTier
   patients?: string[] // patient _ids
   therapist?: string // therapist _id
 }
@@ -181,6 +182,10 @@ export type Module = {
   createdAt: string
   updatedAt: string
   accessPolicy: 'open' | 'assigned'
+  // Admin v1 additions
+  instrument?: Instrument
+  clinicalCutoff?: number
+  reliableChangeDelta?: number
 }
 
 // ==================================
@@ -846,6 +851,7 @@ export type UsersListItem = {
   // Verification flags
   isVerified?: boolean
   isVerifiedTherapist?: boolean
+  therapistTier?: TherapistTier
 
   // Relations
   therapist?: MongoId | null
@@ -995,4 +1001,33 @@ export type PatientProfileStatsResponse = {
   } | null
   sessionsThisWeek: number
   assignmentsDue: number
+}
+
+// ==================================
+// Admin — primitives (v1)
+// ==================================
+export type Instrument = 'phq9' | 'gad7' | 'pdss'
+
+export type CareTier = 'self_help' | 'cbt_guided' | 'pwp_guided'
+export type TherapistTier = 'cbt' | 'pwp'
+
+export type AuditedAction =
+  | 'therapist.verified'
+  | 'therapist.unverified'
+  | 'user.viewed'
+  | 'patient.attemptsViewed'
+  | 'module.created'
+  | 'admin.loggedIn'
+
+export type MetricName = 'recovery' | 'reliable_improvement' | 'reliable_recovery'
+
+export type PrivacyMode = 'production' | 'reduced'
+
+export type Granularity = 'week' | 'month'
+
+export type OutcomeResult = {
+  rate: number | null
+  n: number
+  suppressed: boolean
+  reason: 'below_k' | 'below_min_n' | null
 }
