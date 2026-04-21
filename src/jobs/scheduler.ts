@@ -6,6 +6,9 @@ import JobRun from "../models/jobRunModel";
 const TIMEZONE = "Europe/London";
 const SCHEDULE = "0 2 * * *"; // 02:00 every day, TIMEZONE
 const ROLLUP_JOB_NAME = "rollupMetrics";
+// Cap on how far back catch-up will replay missed slots. A free-tier web
+// service that slept for months should not trigger years of backfill at wake.
+const MAX_CATCHUP_SLOTS = 60;
 
 let task: ScheduledTask | null = null;
 
@@ -26,30 +29,81 @@ export const mostRecentScheduledSlot = (now: Date = new Date()): Date => {
 };
 
 /**
- * Fire `runNightlyRollup` immediately if the last scheduled slot was missed —
- * either because the process was down at 02:00 (free-tier spin-down, laptop
- * asleep, deploy restart) or because the job has never been run.
+ * List the 02:00 London slots that should have been rolled up but were not,
+ * given the last successful `JobRun.completedAt` (or null if the job has
+ * never run).
  *
- * Idempotent: `upsertRollup` uses `updateOne({ upsert: true })`, so running
- * twice for the same bucket updates the row rather than duplicating it.
+ * - No prior success → a single baseline slot (the most recent one) so the
+ *   first boot establishes rollups without back-filling ancient history.
+ * - Prior success → every slot strictly after that success up to and
+ *   including the most recent one, capped at `MAX_CATCHUP_SLOTS` to guard
+ *   against a months-long outage causing a stampede at wake.
+ *
+ * Slots are returned chronologically (oldest first) so logs read naturally
+ * as the replay progresses.
+ */
+export const listMissedSlots = (
+  lastSuccessAt: Date | null,
+  now: Date = new Date(),
+): Date[] => {
+  const mostRecent = DateTime.fromJSDate(mostRecentScheduledSlot(now), {
+    zone: TIMEZONE,
+  });
+  if (!lastSuccessAt) return [mostRecent.toJSDate()];
+
+  const lastLondon = DateTime.fromJSDate(lastSuccessAt, { zone: TIMEZONE });
+  if (lastLondon >= mostRecent) return [];
+
+  // First missed slot is the first 02:00 London strictly after lastSuccessAt.
+  let firstMissed = lastLondon.set({
+    hour: 2,
+    minute: 0,
+    second: 0,
+    millisecond: 0,
+  });
+  if (firstMissed <= lastLondon) firstMissed = firstMissed.plus({ days: 1 });
+
+  const slots: DateTime[] = [];
+  let cursor = mostRecent;
+  while (cursor >= firstMissed && slots.length < MAX_CATCHUP_SLOTS) {
+    slots.push(cursor);
+    cursor = cursor.minus({ days: 1 });
+  }
+  return slots.reverse().map((s) => s.toJSDate());
+};
+
+/**
+ * Fire `runNightlyRollup` for every 02:00 London slot that should have been
+ * rolled up but was not — free-tier spin-down, laptop asleep, deploy restart,
+ * or the job has never run.
+ *
+ * Replay is chronological (oldest first). Each slot writes its own `JobRun`.
+ * Idempotent: `upsertRollup` keys on (metric × dimension × bucket) and uses
+ * `updateOne({ upsert: true })`, so re-running a slot updates rather than
+ * duplicates.
+ *
+ * Returns the number of slots replayed.
  */
 export const catchUpIfMissed = async (
   now: Date = new Date(),
-): Promise<boolean> => {
-  const lastSlot = mostRecentScheduledSlot(now);
-  const recentSuccess = await JobRun.findOne({
+): Promise<number> => {
+  const latest = await JobRun.findOne({
     job: ROLLUP_JOB_NAME,
     status: { $in: ["success", "partial"] },
-    completedAt: { $ne: null, $gte: lastSlot },
+    completedAt: { $ne: null },
   })
     .sort({ completedAt: -1 })
     .lean();
-  if (recentSuccess) return false;
+  const slots = listMissedSlots(latest?.completedAt ?? null, now);
+  if (slots.length === 0) return 0;
+
   console.log(
-    `[scheduler] catch-up triggered — no successful rollup since ${lastSlot.toISOString()}`,
+    `[scheduler] catch-up replaying ${slots.length} missed slot(s), ${slots[0].toISOString()} → ${slots[slots.length - 1].toISOString()}`,
   );
-  await runNightlyRollup(now);
-  return true;
+  for (const slot of slots) {
+    await runNightlyRollup(slot);
+  }
+  return slots.length;
 };
 
 export const startScheduler = (): void => {
