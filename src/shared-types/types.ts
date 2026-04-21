@@ -1178,10 +1178,22 @@ export type AdminAuditEvent = {
   at: string;
 };
 
+export type AdminAuditActorFacet = {
+  _id: string;
+  username: string;
+  name?: string;
+  count: number;
+};
+
+export type AdminAuditFacets = {
+  actors: Array<AdminAuditActorFacet>;
+};
+
 export type AdminAuditResponse = {
   success: true;
   events: Array<AdminAuditEvent>;
   nextCursor: string | null;
+  facets: AdminAuditFacets;
 };
 
 export type AdminSystemHealthResponse = {
