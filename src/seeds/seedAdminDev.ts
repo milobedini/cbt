@@ -26,7 +26,7 @@ const run = async () => {
   const gad7 = await Module.findOne({ instrument: "gad7" });
   if (!depression || !gad || !phq9 || !gad7) {
     console.error(
-      "Missing Depression/GAD programme or PHQ-9/GAD-7 modules. Run seed-all + seed:clinical-metadata first.",
+      "Missing Depression/GAD programme or PHQ-9/GAD-7 modules. Run seed:baseline + seed:clinical-metadata first (or `npm run seed:all`).",
     );
     process.exit(1);
   }

@@ -10,9 +10,10 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "publish": "npm --prefix src/shared-types run publish:pkg",
-    "seed-all": "ts-node ./src/seeds/seedAll.ts",
+    "seed:baseline": "ts-node ./src/seeds/seedBaseline.ts",
     "seed:clinical-metadata": "ts-node ./src/seeds/seedClinicalMetadata.ts",
     "seed:admin-dev": "ts-node ./src/seeds/seedAdminDev.ts",
+    "seed:all": "npm run seed:baseline && npm run seed:clinical-metadata && npm run seed:admin-dev",
     "rollup-metrics": "ts-node ./src/jobs/rollupMetricsCli.ts"
   },
   "repository": {
