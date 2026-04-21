@@ -14,7 +14,8 @@
     "seed:clinical-metadata": "ts-node ./src/seeds/seedClinicalMetadata.ts",
     "seed:admin-dev": "ts-node ./src/seeds/seedAdminDev.ts",
     "seed:all": "npm run seed:baseline && npm run seed:clinical-metadata && npm run seed:admin-dev",
-    "rollup-metrics": "ts-node ./src/jobs/rollupMetricsCli.ts"
+    "rollup-metrics": "ts-node ./src/jobs/rollupMetricsCli.ts",
+    "rollup-metrics:backfill": "ts-node ./src/jobs/rollupBackfillCli.ts"
   },
   "repository": {
     "type": "git",
