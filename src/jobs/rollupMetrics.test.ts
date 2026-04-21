@@ -74,6 +74,96 @@ describe("rollupMetrics (integration)", () => {
     expect(byCbt?.numerator).toBe(1);
   });
 
+  it("pairs an attempt two months before the bucket endpoint (trailing-90d)", async () => {
+    // Under the old within-bucket pairing this scenario would yield zero
+    // rows — the April bucket sees only the April attempt, which has nothing
+    // to pair with. Under trailing-90d pairing the February baseline pairs
+    // with the April endpoint and the patient counts as recovered.
+    const programme = await createProgram("Depression");
+    const phq9 = await createQuestionnaireModule({
+      programId: programme._id,
+      title: "PHQ-9",
+      instrument: "phq9",
+      clinicalCutoff: 10,
+      reliableChangeDelta: 6,
+    });
+    const patient = await createUser({});
+    await createAttempt({
+      userId: patient._id,
+      programId: programme._id,
+      moduleId: phq9._id,
+      totalScore: 18, // baseline, above cutoff
+      completedAt: new Date("2026-02-10T10:00:00Z"),
+    });
+    await createAttempt({
+      userId: patient._id,
+      programId: programme._id,
+      moduleId: phq9._id,
+      totalScore: 4, // endpoint, below cutoff
+      completedAt: new Date("2026-04-10T10:00:00Z"),
+    });
+
+    // Monthly bucket ending 30 April London — 59d separates the two attempts,
+    // comfortably inside the 90d trailing window ending at 2026-04-30T23:00Z.
+    const bucket = {
+      granularity: "month" as const,
+      startsAt: new Date("2026-03-31T23:00:00Z"),
+      endsAt: new Date("2026-04-30T23:00:00Z"),
+    };
+
+    await runRollupForBucket(bucket);
+
+    const platform = await MetricsRollup.findOne({
+      metric: "recovery",
+      "dimension.programmeId": null,
+      "dimension.careTier": null,
+      "dimension.instrument": "phq9",
+    });
+    expect(platform?.numerator).toBe(1);
+    expect(platform?.denominator).toBe(1);
+  });
+
+  it("excludes attempts older than 90 days from the bucket endpoint", async () => {
+    const programme = await createProgram("Depression");
+    const phq9 = await createQuestionnaireModule({
+      programId: programme._id,
+      title: "PHQ-9",
+      instrument: "phq9",
+      clinicalCutoff: 10,
+      reliableChangeDelta: 6,
+    });
+    const patient = await createUser({});
+    // Baseline 120 days before bucket endpoint — outside the 90d window.
+    await createAttempt({
+      userId: patient._id,
+      programId: programme._id,
+      moduleId: phq9._id,
+      totalScore: 18,
+      completedAt: new Date("2026-01-01T10:00:00Z"),
+    });
+    // Endpoint inside the bucket.
+    await createAttempt({
+      userId: patient._id,
+      programId: programme._id,
+      moduleId: phq9._id,
+      totalScore: 4,
+      completedAt: new Date("2026-04-10T10:00:00Z"),
+    });
+
+    const bucket = {
+      granularity: "month" as const,
+      startsAt: new Date("2026-03-31T23:00:00Z"),
+      endsAt: new Date("2026-04-30T23:00:00Z"),
+    };
+
+    await runRollupForBucket(bucket);
+
+    // Only the endpoint lands inside the trailing 90d, so the user has < 2
+    // attempts in window — no pair, no rollup rows.
+    const rows = await MetricsRollup.find({ "dimension.instrument": "phq9" });
+    expect(rows).toHaveLength(0);
+  });
+
   it("is idempotent: running twice yields one row per unique key", async () => {
     const programme = await createProgram("Depression");
     const phq9 = await createQuestionnaireModule({

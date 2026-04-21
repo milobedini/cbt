@@ -26,6 +26,14 @@ type ClinicalModule = {
 
 const CARE_TIERS: CareTier[] = ["self_help", "cbt_guided", "pwp_guided"];
 
+// Each bucket is a *snapshot point*, not a data window. We pair each patient's
+// earliest + latest attempt within a trailing-90d window ending at bucket.endsAt.
+// This matches how IAPT / NHS Talking Therapies report recovery rates and
+// avoids the within-bucket artefact where an 8-week recovery arc straddling
+// two months would disappear from monthly pairing.
+const TRAILING_WINDOW_DAYS = 90;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 const upsertRollup = async (
   metric: MetricName,
   programmeId: mongoose.Types.ObjectId | null,
@@ -90,14 +98,20 @@ export const runRollupForBucket = async (bucket: Bucket): Promise<number> => {
   const tierLookup: Record<string, "cbt" | "pwp" | undefined> = {};
   for (const t of therapists) tierLookup[t._id.toString()] = t.therapistTier;
 
-  // 3. Pull every submitted questionnaire attempt in the bucket whose module has an instrument
+  // 3. Pull every submitted questionnaire attempt in the trailing-90d window
+  //    ending at bucket.endsAt. The bucket is a snapshot *point*, not a data
+  //    window — the row records "recovery rate as of bucket.endsAt looking
+  //    back 90 days".
   const moduleIds = modules.map((m) => m._id);
+  const windowStart = new Date(
+    bucket.endsAt.getTime() - TRAILING_WINDOW_DAYS * DAY_MS,
+  );
   const attempts = (await ModuleAttempt.find(
     {
       status: "submitted",
       moduleType: "questionnaire",
       module: { $in: moduleIds },
-      completedAt: { $gte: bucket.startsAt, $lt: bucket.endsAt },
+      completedAt: { $gte: windowStart, $lt: bucket.endsAt },
     },
     {
       user: 1,
