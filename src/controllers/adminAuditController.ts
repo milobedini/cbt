@@ -13,27 +13,47 @@ export const getAdminAudit = async (
       req.query as Record<string, string>;
     const lim = Math.min(200, Math.max(1, Number(limit) || 50));
 
-    const filter: Record<string, unknown> = {};
+    // Filter used to paginate the events list (includes actor + cursor).
+    const pageFilter: Record<string, unknown> = {};
     if (actorId && mongoose.Types.ObjectId.isValid(actorId))
-      filter.actorId = new mongoose.Types.ObjectId(actorId);
-    if (action) filter.action = action;
-    if (resourceType) filter.resourceType = resourceType;
+      pageFilter.actorId = new mongoose.Types.ObjectId(actorId);
+    if (action) pageFilter.action = action;
+    if (resourceType) pageFilter.resourceType = resourceType;
     if (resourceId && mongoose.Types.ObjectId.isValid(resourceId))
-      filter.resourceId = new mongoose.Types.ObjectId(resourceId);
-    if (cursor) filter.at = { $lt: new Date(cursor) };
+      pageFilter.resourceId = new mongoose.Types.ObjectId(resourceId);
+    if (cursor) pageFilter.at = { $lt: new Date(cursor) };
 
-    const rows = await AdminAuditEvent.find(filter)
-      .sort({ at: -1 })
-      .limit(lim + 1)
-      .lean();
+    // Facet filter mirrors pageFilter but without cursor (paginating should
+    // not shift facets) and without the actor filter itself (so the actor
+    // list shows every eligible actor even when one is selected).
+    const facetFilter: Record<string, unknown> = {};
+    if (action) facetFilter.action = action;
+    if (resourceType) facetFilter.resourceType = resourceType;
+    if (resourceId && mongoose.Types.ObjectId.isValid(resourceId))
+      facetFilter.resourceId = new mongoose.Types.ObjectId(resourceId);
+
+    const [rows, actorFacets] = await Promise.all([
+      AdminAuditEvent.find(pageFilter).sort({ at: -1 }).limit(lim + 1).lean(),
+      AdminAuditEvent.aggregate<{
+        _id: mongoose.Types.ObjectId;
+        count: number;
+      }>([
+        { $match: facetFilter },
+        { $group: { _id: "$actorId", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 50 },
+      ]),
+    ]);
+
     const hasMore = rows.length > lim;
     const slice = hasMore ? rows.slice(0, lim) : rows;
 
-    const actorIds = Array.from(
-      new Set(slice.map((e) => e.actorId.toString())),
-    );
+    const allActorIds = new Set<string>();
+    for (const e of slice) allActorIds.add(e.actorId.toString());
+    for (const f of actorFacets) allActorIds.add(f._id.toString());
+
     const actors = await User.find(
-      { _id: { $in: actorIds } },
+      { _id: { $in: Array.from(allActorIds) } },
       { _id: 1, username: 1, name: 1 },
     ).lean();
     const actorById = new Map(actors.map((a) => [a._id.toString(), a]));
@@ -59,10 +79,21 @@ export const getAdminAudit = async (
       };
     });
 
+    const actorFacetRows = actorFacets.map((f) => {
+      const a = actorById.get(f._id.toString());
+      return {
+        _id: f._id.toString(),
+        username: a?.username ?? "unknown",
+        name: a?.name,
+        count: f.count,
+      };
+    });
+
     res.status(200).json({
       success: true,
       events,
       nextCursor: hasMore ? slice[slice.length - 1].at.toISOString() : null,
+      facets: { actors: actorFacetRows },
     });
   } catch (error) {
     errorHandler(res, error);
