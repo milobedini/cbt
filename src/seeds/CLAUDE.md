@@ -126,10 +126,16 @@ exist. Refuses to run when `NODE_ENV === 'production'`.
   populated).
 - 30 extra patients: 10 self-help (no therapist), 10 assigned to the first
   CBT therapist, 10 assigned to the PWP therapist.
-- ~480 PHQ-9 + GAD-7 attempts across 8 weekly intervals per patient, with
-  ~40% of patients following a recovery arc and the rest staying near
-  baseline. The date range is relative to `new Date()` — re-seeding never
-  needs timestamp adjustments.
+- PHQ-9 + GAD-7 attempts spanning **~12 months** with staggered join dates
+  and four patient lifecycles so trailing-90d snapshots across the year
+  show a realistic rising trend:
+  - `active` (45%) — joined in the last ~4 months, still submitting weekly.
+  - `recovered` (25%) — completed a full recovery arc, stopped submitting.
+  - `stable` (20%) — long-term in-treatment, scores drift slowly.
+  - `dropout` (10%) — submitted briefly then stopped.
+  Each patient's date range is relative to `new Date()`, so re-seeding never
+  needs timestamp adjustments. Tune `LIFECYCLE_WEIGHTS` and the
+  `buildTrajectory` / `scoreAtWeek` helpers at the top of the file.
 
 ### Required prerequisites
 
@@ -144,14 +150,23 @@ If either is missing, the script exits with an error and a hint to run
 ### After running: rollups
 
 The rollup job reads attempts to populate `MetricsRollup`. After
-`seed:admin-dev` (or `seed:all`), either:
+`seed:admin-dev` (or `seed:all`), decide which rollup workflow to run:
 
-- Wait for the nightly cron at 02:00 Europe/London, or
-- Run `npm run rollup-metrics` once to populate immediately.
+- **Just today's snapshot** — `npm run rollup-metrics`. Writes the current
+  week + previous week + current month. Admin dashboard hero figures will
+  populate; the 12-month sparkline will still show "Not enough data" until
+  future cron runs accumulate enough historical rows.
+- **Full 12 months of history** — `npm run rollup-metrics:backfill`. Walks
+  back through the last 12 months (and last 12 weeks) writing a snapshot
+  per monthly + weekly bucket. Idempotent — safe to re-run after seeding
+  or any time you want a fresh historical rebuild. Defaults can be
+  overridden: `npm run rollup-metrics:backfill -- 24 12` (24 months, 12
+  weeks).
 
 The scheduler's on-boot catch-up
 (`src/jobs/scheduler.ts::catchUpIfMissed`) will also backfill any missed
-02:00 slots the next time the BE starts.
+02:00 slots the next time the BE starts, but it cannot reach beyond its
+60-slot cap. Use the backfill CLI for historical rebuilds.
 
 ## Dependencies
 
