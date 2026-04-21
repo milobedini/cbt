@@ -34,7 +34,6 @@ export const getAdminProgrammeDetail = async (
     const thresholds = readThresholds();
     const now = new Date();
     const londonNow = DateTime.fromJSDate(now, { zone: "Europe/London" });
-    const ninetyDaysAgo = londonNow.minus({ days: 90 }).toJSDate();
     const sevenDaysAgo = londonNow.minus({ days: 7 }).toJSDate();
 
     // Enrolment — distinct users who have any attempt in this programme
@@ -79,29 +78,35 @@ export const getAdminProgrammeDetail = async (
     ).lean();
     const byInstrument = await Promise.all(
       modules.map(async (m) => {
-        const sumFor = async (metric: MetricName, tier: CareTier | null) => {
-          const rows = await MetricsRollup.find({
+        // Each rollup row is a trailing-90d snapshot at bucket.endsAt.
+        // For "last 90d", read the most recent snapshot per metric.
+        const latestFor = async (metric: MetricName, tier: CareTier | null) => {
+          const row = await MetricsRollup.findOne({
             metric,
             "dimension.programmeId": programme._id,
             "dimension.careTier": tier,
             "dimension.instrument": m.instrument as Instrument,
-            "bucket.startsAt": { $gte: ninetyDaysAgo },
-          }).lean();
-          const numerator = rows.reduce((s, r) => s + r.numerator, 0);
-          const denominator = rows.reduce((s, r) => s + r.denominator, 0);
-          return applySuppression({ numerator, denominator }, thresholds);
+          })
+            .sort({ "bucket.endsAt": -1 })
+            .lean();
+          return applySuppression(
+            row
+              ? { numerator: row.numerator, denominator: row.denominator }
+              : { numerator: 0, denominator: 0 },
+            thresholds,
+          );
         };
         const overall = {
-          recovery: await sumFor("recovery", null),
-          reliableImprovement: await sumFor("reliable_improvement", null),
-          reliableRecovery: await sumFor("reliable_recovery", null),
+          recovery: await latestFor("recovery", null),
+          reliableImprovement: await latestFor("reliable_improvement", null),
+          reliableRecovery: await latestFor("reliable_recovery", null),
         };
         const byCareTier = await Promise.all(
           CARE_TIERS.map(async (tier) => ({
             careTier: tier,
-            recovery: await sumFor("recovery", tier),
-            reliableImprovement: await sumFor("reliable_improvement", tier),
-            reliableRecovery: await sumFor("reliable_recovery", tier),
+            recovery: await latestFor("recovery", tier),
+            reliableImprovement: await latestFor("reliable_improvement", tier),
+            reliableRecovery: await latestFor("reliable_recovery", tier),
           })),
         );
         return {
