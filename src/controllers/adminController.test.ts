@@ -1,6 +1,7 @@
 import request from "supertest";
 import jwt from "jsonwebtoken";
 import { buildTestApp } from "../test-utils/app";
+import MetricsRollup from "../models/metricsRollupModel";
 import {
   createUser,
   createProgram,
@@ -24,6 +25,68 @@ describe("GET /api/admin/overview", () => {
       .get("/api/admin/overview")
       .set("Cookie", [`token=${signToken(u._id.toString())}`]);
     expect(res.status).toBe(403);
+  });
+
+  it("programme outcomes reflect the most recent snapshot row, not a sum of buckets", async () => {
+    const admin = await createUser({ role: "admin" });
+    const programme = await createProgram("Depression");
+    await createQuestionnaireModule({
+      programId: programme._id,
+      title: "PHQ-9",
+      instrument: "phq9",
+      clinicalCutoff: 10,
+      reliableChangeDelta: 6,
+    });
+
+    // Older snapshot: 20% recovery (2/10)
+    await MetricsRollup.create({
+      metric: "recovery",
+      dimension: {
+        programmeId: programme._id,
+        careTier: null,
+        instrument: "phq9",
+      },
+      bucket: {
+        granularity: "month",
+        startsAt: new Date("2026-02-28T23:00:00Z"),
+        endsAt: new Date("2026-03-31T23:00:00Z"),
+      },
+      numerator: 2,
+      denominator: 10,
+      n: 10,
+      computedAt: new Date(),
+      schemaVersion: 1,
+    });
+    // Newer snapshot: 50% recovery (5/10) — this is what /overview should read.
+    await MetricsRollup.create({
+      metric: "recovery",
+      dimension: {
+        programmeId: programme._id,
+        careTier: null,
+        instrument: "phq9",
+      },
+      bucket: {
+        granularity: "month",
+        startsAt: new Date("2026-03-31T23:00:00Z"),
+        endsAt: new Date("2026-04-30T23:00:00Z"),
+      },
+      numerator: 5,
+      denominator: 10,
+      n: 10,
+      computedAt: new Date(),
+      schemaVersion: 1,
+    });
+
+    const res = await request(buildTestApp())
+      .get("/api/admin/overview")
+      .set("Cookie", [`token=${signToken(admin._id.toString())}`]);
+
+    expect(res.status).toBe(200);
+    const dep = res.body.programmes.find(
+      (p: { title: string }) => p.title === "Depression",
+    );
+    expect(dep.outcomes.recovery.rate).toBeCloseTo(0.5, 2);
+    expect(dep.outcomes.recovery.n).toBe(10);
   });
 
   it("returns populated overview shape for admin", async () => {

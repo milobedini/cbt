@@ -32,7 +32,6 @@ export const getAdminOverview = async (
     const fourteenDaysAgo = londonNow.minus({ days: 14 }).toJSDate();
     const thirtyDaysAgo = londonNow.minus({ days: 30 }).toJSDate();
     const sixtyDaysAgo = londonNow.minus({ days: 60 }).toJSDate();
-    const ninetyDaysAgo = londonNow.minus({ days: 90 }).toJSDate();
 
     // Users
     const [
@@ -131,20 +130,45 @@ export const getAdminOverview = async (
             outcomes: null,
           };
         }
-        // Aggregate rollups over last 90d (sum of buckets)
-        const buckets = await MetricsRollup.find({
-          "dimension.programmeId": p._id,
-          "dimension.careTier": null,
-          "dimension.instrument": primary.instrument,
-          "bucket.startsAt": { $gte: ninetyDaysAgo },
-        }).lean();
-
-        const sumFor = (metric: string) => {
-          const rows = buckets.filter((b) => b.metric === metric);
-          const numerator = rows.reduce((s, r) => s + r.numerator, 0);
-          const denominator = rows.reduce((s, r) => s + r.denominator, 0);
-          return applySuppression({ numerator, denominator }, thresholds);
-        };
+        // Each rollup row is a trailing-90d snapshot at bucket.endsAt. The
+        // "last 90d" rate for the overview is simply the most recent snapshot
+        // per metric — no summing across buckets (which would double-count
+        // patients who appear in multiple bucket windows).
+        const latestRows = await MetricsRollup.aggregate<{
+          _id: string;
+          numerator: number;
+          denominator: number;
+        }>([
+          {
+            $match: {
+              "dimension.programmeId": p._id,
+              "dimension.careTier": null,
+              "dimension.instrument": primary.instrument,
+            },
+          },
+          { $sort: { "bucket.endsAt": -1 } },
+          {
+            $group: {
+              _id: "$metric",
+              numerator: { $first: "$numerator" },
+              denominator: { $first: "$denominator" },
+            },
+          },
+        ]);
+        const latestBy = new Map<
+          string,
+          { numerator: number; denominator: number }
+        >();
+        for (const row of latestRows)
+          latestBy.set(row._id, {
+            numerator: row.numerator,
+            denominator: row.denominator,
+          });
+        const latestFor = (metric: string) =>
+          applySuppression(
+            latestBy.get(metric) ?? { numerator: 0, denominator: 0 },
+            thresholds,
+          );
 
         return {
           programmeId: p._id.toString(),
@@ -153,9 +177,9 @@ export const getAdminOverview = async (
           outcomes: {
             window: "last_90d" as const,
             instrument: primary.instrument,
-            recovery: sumFor("recovery"),
-            reliableImprovement: sumFor("reliable_improvement"),
-            reliableRecovery: sumFor("reliable_recovery"),
+            recovery: latestFor("recovery"),
+            reliableImprovement: latestFor("reliable_improvement"),
+            reliableRecovery: latestFor("reliable_recovery"),
           },
         };
       }),
