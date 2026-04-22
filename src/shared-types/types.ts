@@ -1205,3 +1205,79 @@ export type AdminSystemHealthResponse = {
   } | null;
   auditEventsTotal: number;
 };
+
+// ==================================
+// Admin — stalled attempts / orphaned assignments (v3)
+// ==================================
+
+export type AdminStalledAttemptRow = {
+  attemptId: string;
+  moduleType:
+    | "questionnaire"
+    | "reading"
+    | "activity_diary"
+    | "five_areas_model"
+    | "general_goals"
+    | "weekly_goals";
+  module: { _id: string; title: string };
+  user: { _id: string; username: string; name?: string };
+  therapist: {
+    _id: string;
+    username: string;
+    name?: string;
+    isVerifiedTherapist: boolean;
+  } | null;
+  startedAt: string;
+  lastInteractionAt: string;
+};
+
+export type AdminStalledAttemptsFacetRow = {
+  moduleType: AdminStalledAttemptRow["moduleType"];
+  count: number;
+};
+
+export type AdminStalledAttemptsFacets = {
+  moduleTypes: Array<AdminStalledAttemptsFacetRow>;
+};
+
+export type AdminStalledAttemptsResponse = {
+  success: true;
+  items: Array<AdminStalledAttemptRow>;
+  nextCursor: string | null;
+  facets: AdminStalledAttemptsFacets;
+};
+
+export type OrphanReason = "therapist_unverified" | "therapist_missing";
+
+export type AdminOrphanedAssignmentRow = {
+  assignmentId: string;
+  moduleType: AdminStalledAttemptRow["moduleType"];
+  module: { _id: string; title: string };
+  user: { _id: string; username: string; name?: string };
+  therapist: {
+    _id: string;
+    username: string;
+    name?: string;
+    isVerifiedTherapist: boolean;
+  } | null;
+  reason: OrphanReason;
+  status: "assigned" | "in_progress" | "completed" | "cancelled";
+  assignedAt: string;
+  dueAt: string | null;
+};
+
+export type AdminOrphanedAssignmentsFacetRow = {
+  reason: OrphanReason;
+  count: number;
+};
+
+export type AdminOrphanedAssignmentsFacets = {
+  reasons: Array<AdminOrphanedAssignmentsFacetRow>;
+};
+
+export type AdminOrphanedAssignmentsResponse = {
+  success: true;
+  items: Array<AdminOrphanedAssignmentRow>;
+  nextCursor: string | null;
+  facets: AdminOrphanedAssignmentsFacets;
+};
