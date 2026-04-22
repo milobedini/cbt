@@ -7,6 +7,8 @@ import {
 import { getAdminOutcomes } from "../controllers/adminOutcomesController";
 import { getAdminProgrammeDetail } from "../controllers/adminProgrammesController";
 import { getAdminAudit } from "../controllers/adminAuditController";
+import { getAdminStalledAttempts } from "../controllers/adminStalledController";
+import { getAdminOrphanedAssignments } from "../controllers/adminOrphanedController";
 
 const router = express.Router();
 
@@ -17,5 +19,7 @@ router.get("/outcomes", getAdminOutcomes);
 router.get("/programmes/:id", getAdminProgrammeDetail);
 router.get("/audit", getAdminAudit);
 router.get("/system/health", getAdminSystemHealth);
+router.get("/attempts/stalled", getAdminStalledAttempts);
+router.get("/assignments/orphaned", getAdminOrphanedAssignments);
 
 export default router;
